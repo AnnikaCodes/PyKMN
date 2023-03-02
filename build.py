@@ -91,7 +91,7 @@ def find_zig() -> str:
         if is_new_enough(parse_zig_version(system_zig_env['version'])):
             return system_zig
         else:
-            log(f"Found system `zig`, but the installed version ({system_zig_env['version']}) is too old :(", color=ORANGE)
+            log(f"Found installed Zig, but the version ({system_zig_env['version']}) is too old :(", color=ORANGE)
 
     got_own_zig = True # TODO: clean up at the end
     log("Fetching Zig download index")
@@ -138,15 +138,30 @@ def find_zig() -> str:
 
     log(f"Extracting Zig from '{tarball_name}'")
     extract_zig(tarball_name, "zig-toolchain")
+    os.unlink(tarball_name)
 
     zig_directory = tarball_name[0:-4] if tarball_name.endswith(".zip") else tarball_name[0:-7]
     return os.path.join(os.getcwd(), "zig-toolchain", zig_directory, "zig")
 
-zig_path = find_zig()
-log(f"Using Zig at {zig_path}")
+# Gets the git submodule
+def fetch_pkmn_engine() -> None:
+    log("Fetching @pkmn/engine code")
+    try:
+        subprocess.call(['git', 'submodule', 'init'])
+        subprocess.call(['git', 'submodule', 'update'])
+    except:
+        log("Couldn't fetch pkmn-engine submodule. Please make sure you have git installed.", color=RED)
+        exit(1)
 
-ffibuilder = FFI()
-ZIG_OUT_PATH="./zig-out"
+# Builds the @pkmn/engine library
+def build_pkmn_engine(zig_path: str) -> None:
+    log("Building @pkmn/engine")
+    try:
+        # TODO: support -Dshowdown, -Dtrace
+        subprocess.call([zig_path, "build", "-Doptimize=ReleaseFast"], cwd="engine")
+    except Exception as e:
+        log(f"Failed to build pkmn-engine. Error: {e}", color=RED)
+        exit(1)
 
 # Simplifies the pkmn.h file so that cffi can parse it
 def simplify_pkmn_header(header_text: str) -> str:
@@ -160,6 +175,15 @@ def simplify_pkmn_header(header_text: str) -> str:
     without_pkmn_opaque_definition = without_defines.replace("#define PKMN_OPAQUE(n) typedef struct { uint8_t bytes[n]; }\n", "")
     return re.sub(r'PKMN_OPAQUE\(([^)]*)\)', r'typedef struct { uint8_t bytes[\1]; }', without_pkmn_opaque_definition)
 
+zig_path = find_zig()
+log(f"Using Zig at {zig_path}")
+fetch_pkmn_engine()
+build_pkmn_engine(zig_path)
+
+ffibuilder = FFI()
+ZIG_OUT_PATH="engine/zig-out"
+
+log("Building bindings")
 header_text = open(f"{ZIG_OUT_PATH}/include/pkmn.h").read()
 ffibuilder.cdef(simplify_pkmn_header(header_text))
 ffibuilder.set_source(
@@ -168,6 +192,10 @@ ffibuilder.set_source(
     libraries=['pkmn'],
     library_dirs=[f"{ZIG_OUT_PATH}/lib"],
 )
+
+if got_own_zig:
+    log("Removing Zig toolchain")
+    os.unlink("zig-toolchain")
 
 if __name__ == "__main__":
     ffibuilder.compile(verbose=True)
