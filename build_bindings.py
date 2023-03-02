@@ -160,7 +160,7 @@ def build_pkmn_engine(zig_path: str) -> None:
     try:
         # TODO: support -Dshowdown, -Dtrace
         # TODO: don't rebuild if no change?
-        subprocess.call([zig_path, "build", "-Doptimize=ReleaseFast"], cwd="engine")
+        subprocess.call([zig_path, "build", "-Dpic=true", "-Doptimize=ReleaseFast"], cwd="engine")
     except Exception as e:
         log(f"Failed to build pkmn-engine. Error: {e}", color=ORANGE)
         if not Path("engine/zig-out").exists():
@@ -198,6 +198,8 @@ ffibuilder.set_source(
     f"#include \"{pkmn_h_path}\"",
     libraries=['pkmn'],
     library_dirs=[os.path.join(zig_out_path, "lib")],
+    extra_compile_args=["-fPIC", "-shared"],
+    extra_link_args=["-fPIC"],
 )
 
 if got_own_zig:
