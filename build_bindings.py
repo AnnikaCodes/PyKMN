@@ -159,6 +159,7 @@ def build_pkmn_engine(zig_path: str) -> None:
     log("Building @pkmn/engine")
     try:
         # TODO: support -Dshowdown, -Dtrace
+        # TODO: don't rebuild if no change?
         subprocess.call([zig_path, "build", "-Doptimize=ReleaseFast"], cwd="engine")
     except Exception as e:
         log(f"Failed to build pkmn-engine. Error: {e}", color=ORANGE)

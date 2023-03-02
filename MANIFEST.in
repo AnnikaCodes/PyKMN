@@ -1,1 +1,2 @@
 include engine/zig-out/*/*
+include build_bindings.py
