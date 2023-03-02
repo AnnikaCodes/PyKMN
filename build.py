@@ -16,10 +16,14 @@ import re
 import platform
 import requests
 
+GREEN = '\033[92m'
+ORANGE = '\033[93m'
+RED = '\033[91m'
+
 indent = 1
-def log(message: str) -> None:
+def log(message: str, color=GREEN) -> None:
     global indent
-    print(f"{'=' * indent}> {message}")
+    print(f"{color}{'=' * indent}> {message}\033[0m")
     indent += 1
 
 # First, we need to find/install Zig
@@ -59,7 +63,7 @@ def find_zig() -> str:
             log(f"Found system `zig` version {system_zig_env['version']}")
             return system_zig
         else:
-            log(f"Found system `zig`, but the installed version ({system_zig_env['version']}) is too old :(")
+            log(f"Found system `zig`, but the installed version ({system_zig_env['version']}) is too old :(", color=ORANGE)
 
     log("Fetching Zig download index...")
     zig_download_index = requests.get(ZIG_DOWNLOAD_INDEX_URL).json()
@@ -75,7 +79,7 @@ def find_zig() -> str:
         system = "macos"
     zig_platform = f'{arch}-{system}'
     if zig_platform not in zig_download_index[version]:
-        log(f"Couldn't find a Zig compiler for your platform ({zig_platform}). Please manually install Zig; version {version} should be compatible with pykmn.")
+        log(f"Couldn't find a Zig compiler for your platform ({zig_platform}). Please manually install Zig; version {version} should be compatible with pykmn.", color=RED)
         exit(1)
 
     tarball_url = zig_download_index[version][zig_platform]['tarball']
