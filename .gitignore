@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 /zig-out
+_pkmn_engine_bindings.*
 
 # C extensions
 *.so
