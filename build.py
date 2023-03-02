@@ -15,10 +15,15 @@ import json
 import re
 import platform
 import requests
+import sys
+import hashlib
+import os
 
 GREEN = '\033[92m'
 ORANGE = '\033[93m'
 RED = '\033[91m'
+
+got_own_zig = False
 
 indent = 1
 def log(message: str, color=GREEN) -> None:
@@ -52,6 +57,30 @@ def is_new_enough(version: tuple[int, int, int, int | None]) -> bool:
     return major >= MINIMUM_ZIG_MAJOR_VERSION and minor >= MINIMUM_ZIG_MINOR_VERSION and \
         patch >= MINIMUM_ZIG_PATCH_VERSION and dev >= MINIMUM_ZIG_DEV_VERSION
 
+def extract_zig(tarball_name: str, output_dir: str) -> None:
+    try:
+        os.mkdir(output_dir)
+    except FileExistsError:
+        pass
+
+    if not tarball_name.endswith('.zip'):
+        try:
+            subprocess.call(['tar', '-xf', tarball_name, '-C', output_dir])
+            return
+        except:
+            # tar not available, we'll use Python's modules instead
+            pass
+
+    if tarball_name.endswith('.zip'):
+        import zipfile
+        zipfile.ZipFile(tarball_name).extractall(output_dir)
+    else: # .tar.xz
+        import lzma
+        import tarfile
+        with lzma.open(tarball_name) as tarball:
+            tarfile.open(fileobj=tarball).extractall(output_dir)
+
+
 # This function returns the path to a workable Zig (new enough version), installing it if needed
 def find_zig() -> str:
     log("Looking for a Zig compiler...")
@@ -60,12 +89,12 @@ def find_zig() -> str:
         system_zig_env = json.loads(subprocess.getoutput(f"{system_zig} env"))
 
         if is_new_enough(parse_zig_version(system_zig_env['version'])):
-            log(f"Found system `zig` version {system_zig_env['version']}")
             return system_zig
         else:
             log(f"Found system `zig`, but the installed version ({system_zig_env['version']}) is too old :(", color=ORANGE)
 
-    log("Fetching Zig download index...")
+    got_own_zig = True # TODO: clean up at the end
+    log("Fetching Zig download index")
     zig_download_index = requests.get(ZIG_DOWNLOAD_INDEX_URL).json()
     newest_version = sorted(zig_download_index.keys(), key=lambda x: parse_zig_version(x), reverse=True).pop()
     if is_new_enough(parse_zig_version(newest_version)):
@@ -83,11 +112,38 @@ def find_zig() -> str:
         exit(1)
 
     tarball_url = zig_download_index[version][zig_platform]['tarball']
-    log(f"Downloading Zig version {version} for {zig_platform}...")
-    # TODO: make it work
 
+    log(f"Downloading Zig version {version} for {zig_platform} from {tarball_url}")
+    tarball_stream = requests.get(tarball_url, stream=True)
+    tarball_name = tarball_url.split("/")[-1]
+    sys.stdout.write("1 dot = 1 mibibyte [")
+    sys.stdout.flush()
+
+    hash = hashlib.sha256()
+    with open(tarball_name, 'wb') as fd:
+        for chunk in tarball_stream.iter_content(chunk_size=2**20):
+            sys.stdout.write(".")
+            sys.stdout.flush()
+            hash.update(chunk)
+            fd.write(chunk)
+    print("]")
+
+    hash_value = hash.hexdigest()
+    if hash_value != zig_download_index[version][zig_platform]['shasum']:
+        log(f"SHA-256 hash for downloaded Zig doesn't match (got {hash_value}, expected {zig_download_index[version][zig_platform]['shasum']})", color=RED)
+        log(f"The download may be corrupted; please try again.", color=RED)
+        exit(1)
+    else:
+        log(f"Verified downloaded Zig (hash={hash_value})")
+
+    log(f"Extracting Zig from '{tarball_name}'")
+    extract_zig(tarball_name, "zig-toolchain")
+
+    zig_directory = tarball_name[0:-4] if tarball_name.endswith(".zip") else tarball_name[0:-7]
+    return os.path.join(os.getcwd(), "zig-toolchain", zig_directory, "zig")
 
 zig_path = find_zig()
+log(f"Using Zig at {zig_path}")
 
 ffibuilder = FFI()
 ZIG_OUT_PATH="./zig-out"

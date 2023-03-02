@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 
 /zig-out
+/zig-toolchain
+/zig-*.tar.xz
+/zig-*.zip
 _pkmn_engine_bindings.*
 
 # C extensions
