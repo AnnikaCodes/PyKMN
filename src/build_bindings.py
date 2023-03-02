@@ -18,6 +18,7 @@ import requests
 import sys
 import hashlib
 import os
+from pathlib import Path
 
 GREEN = '\033[92m'
 ORANGE = '\033[93m'
@@ -160,8 +161,12 @@ def build_pkmn_engine(zig_path: str) -> None:
         # TODO: support -Dshowdown, -Dtrace
         subprocess.call([zig_path, "build", "-Doptimize=ReleaseFast"], cwd="engine")
     except Exception as e:
-        log(f"Failed to build pkmn-engine. Error: {e}", color=RED)
-        exit(1)
+        log(f"Failed to build pkmn-engine. Error: {e}", color=ORANGE)
+        if not Path("engine/zig-out").exists():
+            log("Exiting...")
+            exit(1)
+        else:
+            log("Using existing engine/zig-out...")
 
 # Simplifies the pkmn.h file so that cffi can parse it
 def simplify_pkmn_header(header_text: str) -> str:
@@ -181,16 +186,17 @@ fetch_pkmn_engine()
 build_pkmn_engine(zig_path)
 
 ffibuilder = FFI()
-ZIG_OUT_PATH="engine/zig-out"
+zig_out_path = os.path.join(os.getcwd(), "engine", "zig-out")
+pkmn_h_path = os.path.join(zig_out_path, "include", "pkmn.h")
 
 log("Building bindings")
-header_text = open(f"{ZIG_OUT_PATH}/include/pkmn.h").read()
+header_text = open(pkmn_h_path, 'r').read()
 ffibuilder.cdef(simplify_pkmn_header(header_text))
 ffibuilder.set_source(
     "_pkmn_engine_bindings",
-    f"#include \"{ZIG_OUT_PATH}/include/pkmn.h\"",
+    f"#include \"{pkmn_h_path}\"",
     libraries=['pkmn'],
-    library_dirs=[f"{ZIG_OUT_PATH}/lib"],
+    library_dirs=[os.path.join(zig_out_path, "lib")],
 )
 
 if got_own_zig:
