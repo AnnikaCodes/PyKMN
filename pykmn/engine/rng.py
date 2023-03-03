@@ -1,0 +1,1 @@
+"""Python wrappers for libpkmn's random number generation features."""

@@ -74,13 +74,13 @@ def parse_zig_version(version: str) -> tuple[int, int, int, int | None]:
 
 
 def is_new_enough(version: tuple[int, int, int, int | None]) -> bool:
-    """Check if a Zig version can build @pkmn/engine based on the constants in this file.
+    """Check if a Zig version can build libpkmn based on the constants in this file.
 
     Args:
         version (tuple[int, int, int, int | None]): the Zig version from parse_zig_version()
 
     Returns:
-        bool: True if the version can build @pkmn/engine, else False
+        bool: True if the version can build libpkmn, else False
     """
     [major, minor, patch, dev] = version
     return major >= MINIMUM_ZIG_MAJOR_VERSION and minor >= MINIMUM_ZIG_MINOR_VERSION and \
@@ -119,7 +119,7 @@ def extract_zig(tarball_name: str, output_dir: str) -> None:
 
 # This function returns the path to a workable Zig (new enough version), installing it if needed
 def find_zig() -> str:
-    """Find a version of Zig new enough to build @pkmn/engine, installing it if needed.
+    """Find a version of Zig new enough to build libpkmn, installing it if needed.
 
     Returns:
         str: the path to a usable Zig executable
@@ -206,11 +206,11 @@ def find_zig() -> str:
 
 
 def fetch_pkmn_engine() -> None:
-    """Fetch the @pkmn/engine submodule and fail if git isn't installed.
+    """Fetch the libpkmn submodule and fail if git isn't installed.
 
     This might not be necessary; I should check sometime.
     """
-    log("Fetching @pkmn/engine code")
+    log("Fetching libpkmn code")
     try:
         subprocess.call(['git', 'submodule', 'init'])
         subprocess.call(['git', 'submodule', 'update'])
@@ -223,12 +223,12 @@ def fetch_pkmn_engine() -> None:
 
 
 def build_pkmn_engine(zig_path: str) -> None:
-    """Build the @pkmn/engine library, populating the zig-out directory with a library.
+    """Build libpkmn, populating the zig-out directory with a library file.
 
     Args:
         zig_path (str): the path to the Zig executable
     """
-    log("Building @pkmn/engine")
+    log("Building libpkmn")
     try:
         # TODO: support -Dshowdown, -Dtrace
         # TODO: don't rebuild if no change?
