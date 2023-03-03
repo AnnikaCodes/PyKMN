@@ -1,5 +1,5 @@
 include engine/*
-recursive-include engine/src/ *
+recursive-include engine/src *
 include build_bindings.py
-recursive-exclude engine/zig-out/ *
-recursive-exclude engine/src/examples/ *
+recursive-exclude engine/zig-out *
+recursive-exclude engine/src/examples *

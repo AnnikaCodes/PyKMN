@@ -105,8 +105,10 @@ def find_zig() -> str:
 
     arch = platform.machine()
     system = platform.system().lower()
-    if system == "darwin":
-        system = "macos"
+
+    if system == "darwin": system = "macos"
+    if arch == "AMD64": arch = "x86_64"
+
     zig_platform = f'{arch}-{system}'
     if zig_platform not in zig_download_index[version]:
         log(f"Couldn't find a Zig compiler for your platform ({zig_platform}). Please manually install Zig; version {version} should be compatible with pykmn.", color=RED)
