@@ -222,24 +222,35 @@ def fetch_pkmn_engine() -> None:
         exit(1)
 
 
-def build_pkmn_engine(zig_path: str) -> None:
-    """Build libpkmn, populating the zig-out directory with a library file.
-
-    Args:
-        zig_path (str): the path to the Zig executable
-    """
-    log("Building libpkmn")
+def build_pkmn_engine() -> None:
+    """Build libpkmn, populating the zig-out directory with a library file."""
+    output_path = Path("engine/zig-out/lib")
     try:
         # TODO: support -Dshowdown, -Dtrace
-        # TODO: don't rebuild if no change?
+        if output_path.exists():
+            # check to see if we need to rebuild
+            try:
+                library_file = os.listdir(output_path)[0]
+                library_mtime = os.path.getmtime(os.path.join(output_path, library_file))
+                source_mtime = max(
+                    max(os.path.getmtime(root) for root, _, _ in os.walk('engine/src')),
+                    os.path.getmtime('engine/build.zig')
+                )
+                if library_mtime > source_mtime:
+                    log(
+                        "No change to libpkmn source files since last build, skipping rebuild",
+                        color=ORANGE
+                    )
+                    return
+            except StopIteration:
+                pass
+
+        zig_path = find_zig()
+        log(f"Building libpkmn with Zig at {zig_path}")
         subprocess.call([zig_path, "build", "-Dpic=true", "-Doptimize=ReleaseFast"], cwd="engine")
     except Exception as e:
-        log(f"Failed to build pkmn-engine. Error: {e}", color=ORANGE)
-        if not Path("engine/zig-out").exists():
-            log("Exiting...")
-            exit(1)
-        else:
-            log("Using existing engine/zig-out...")
+        log(f"Failed to build libpkmn. Error: {e}", color=RED)
+        exit(1)
 
 
 def simplify_pkmn_header(header_text: str) -> str:
@@ -272,10 +283,8 @@ def simplify_pkmn_header(header_text: str) -> str:
     )
 
 
-zig_path = find_zig()
-log(f"Using Zig at {zig_path}")
 fetch_pkmn_engine()
-build_pkmn_engine(zig_path)
+build_pkmn_engine()
 
 ffibuilder = FFI()
 zig_out_path = os.path.join(os.getcwd(), "engine", "zig-out")
