@@ -26,9 +26,9 @@ jobs:
         python-version: '3.x'
 
     - name: Install testing tools
-      run: python3 -m pip install flake8 mypy flake8-docstrings
+      run: python3 -m pip install flake8 mypy flake8-docstrings build
+        coverage cffi requests
         types-cffi types-requests types-setuptools
-
 
     - name: Set up debugging tmate session
       uses: mxschmitt/action-tmate@v3
@@ -39,3 +39,20 @@ jobs:
 
     - name: Check types
       run: mypy .
+
+    - name: Build pykmn
+      run: python3 -m build
+
+    - name: Install pykmn
+      run: python3 -m pip install --find-links=dist pykmn
+
+    - name: Run unit tests
+      run: python3 -m coverage run -m unittest discover tests
+
+    - name: Generate test coverage report
+      run: python3 -m coverage xml --include='pykmn/*'
+
+    - name: Upload test coverage report
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
