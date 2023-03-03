@@ -1,12 +1,14 @@
 """Python wrappers for libpkmn's random number generation features."""
 from _pkmn_engine_bindings import ffi, lib  # type: ignore # noqa: F401
 
+
 class ShowdownRNG:
     """Wraps libpkmn's implementation of the random number generator used by Pokémon Showdown.
 
     This RNG is used by Showdown for all generations,
     but is most similar to the cartridge RNG in Generations V and VI.
     """
+
     def __init__(self, seed: int) -> None:
         """Create a new ShowdownRNG instance with the given seed.
 
