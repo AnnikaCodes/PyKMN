@@ -295,7 +295,7 @@ ffibuilder.set_source(
 
 if got_own_zig:
     log("Removing Zig toolchain")
-    os.unlink("zig-toolchain")
+    shutil.rmtree("zig-toolchain")
 
 if __name__ == "__main__":
     ffibuilder.compile(verbose=True)
