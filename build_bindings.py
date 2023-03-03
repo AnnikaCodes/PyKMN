@@ -1,6 +1,6 @@
 # Builds the importable _pkmn_engine_bindings module
 
-# from ttps://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
+# from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
 MINIMUM_ZIG_MAJOR_VERSION = 0
 MINIMUM_ZIG_MINOR_VERSION = 11
 MINIMUM_ZIG_PATCH_VERSION = 0
