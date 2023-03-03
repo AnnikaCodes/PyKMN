@@ -1,12 +1,4 @@
-# Builds the importable _pkmn_engine_bindings module
-
-# from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
-MINIMUM_ZIG_MAJOR_VERSION = 0
-MINIMUM_ZIG_MINOR_VERSION = 11
-MINIMUM_ZIG_PATCH_VERSION = 0
-MINIMUM_ZIG_DEV_VERSION = 1711
-
-ZIG_DOWNLOAD_INDEX_URL = 'https://ziglang.org/download/index.json'
+"""Builds the importable _pkmn_engine_bindings module."""
 
 from cffi import FFI
 import shutil
@@ -20,6 +12,14 @@ import hashlib
 import os
 from pathlib import Path
 
+# from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
+MINIMUM_ZIG_MAJOR_VERSION = 0
+MINIMUM_ZIG_MINOR_VERSION = 11
+MINIMUM_ZIG_PATCH_VERSION = 0
+MINIMUM_ZIG_DEV_VERSION = 1711
+
+ZIG_DOWNLOAD_INDEX_URL = 'https://ziglang.org/download/index.json'
+
 GREEN = '\033[92m'
 ORANGE = '\033[93m'
 RED = '\033[91m'
@@ -27,7 +27,15 @@ RED = '\033[91m'
 got_own_zig = False
 
 indent = 1
+
+
 def log(message: str, color=GREEN) -> None:
+    """Log a message to the console with progressing arrows and color.
+
+    Args:
+        message (str): the message to log
+        color (str, optional): the terminal color string to print with it. Defaults to GREEN.
+    """
     global indent
     print(f"{color}{'=' * indent}> {message}\033[0m")
     indent += 1
@@ -36,12 +44,23 @@ def log(message: str, color=GREEN) -> None:
 # This part is based on pre's `install-pkmn-engine` script:
 # https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine
 
+
 def parse_zig_version(version: str) -> tuple[int, int, int, int | None]:
+    """Parse a Zig version string.
+
+    Args:
+        version (str): the Zig version string
+
+    Returns:
+        tuple[int, int, int, int | None]: a tuple of (major, minor, patch, dev) version information
+            dev is None if there's no dev version in the string.
+            Returns (-1, 0, 0, None) if the version string provided is 'master'.
+    """
     if version == 'master':
-        return (-1, 0, 0, 0)
+        return (-1, 0, 0, None)
     try:
         parsed_version = [int(re.sub(r'[^\d].*', '', part)) for part in version.split(".")]
-    except:
+    except ValueError:
         parsed_version = []
 
     if len(parsed_version) == 3:
@@ -53,12 +72,28 @@ def parse_zig_version(version: str) -> tuple[int, int, int, int | None]:
         log(f"Couldn't parse Zig version '{version}'")
     return (major, minor, patch, dev)
 
+
 def is_new_enough(version: tuple[int, int, int, int | None]) -> bool:
+    """Check if a Zig version can build @pkmn/engine based on the constants in this file.
+
+    Args:
+        version (tuple[int, int, int, int | None]): the Zig version from parse_zig_version()
+
+    Returns:
+        bool: True if the version can build @pkmn/engine, else False
+    """
     [major, minor, patch, dev] = version
     return major >= MINIMUM_ZIG_MAJOR_VERSION and minor >= MINIMUM_ZIG_MINOR_VERSION and \
-        patch >= MINIMUM_ZIG_PATCH_VERSION and dev >= MINIMUM_ZIG_DEV_VERSION
+        patch >= MINIMUM_ZIG_PATCH_VERSION and (dev is None or dev >= MINIMUM_ZIG_DEV_VERSION)
+
 
 def extract_zig(tarball_name: str, output_dir: str) -> None:
+    """Extract a Zig release tarball.
+
+    Args:
+        tarball_name (str): the path to the tarball
+        output_dir (str): the path to a folder to extract it into
+    """
     try:
         os.mkdir(output_dir)
     except FileExistsError:
@@ -68,14 +103,14 @@ def extract_zig(tarball_name: str, output_dir: str) -> None:
         try:
             subprocess.call(['tar', '-xf', tarball_name, '-C', output_dir])
             return
-        except:
+        except FileNotFoundError:
             # tar not available, we'll use Python's modules instead
             pass
 
     if tarball_name.endswith('.zip'):
         import zipfile
         zipfile.ZipFile(tarball_name).extractall(output_dir)
-    else: # .tar.xz
+    else:  # .tar.xz
         import lzma
         import tarfile
         with lzma.open(tarball_name) as tarball:
@@ -84,6 +119,12 @@ def extract_zig(tarball_name: str, output_dir: str) -> None:
 
 # This function returns the path to a workable Zig (new enough version), installing it if needed
 def find_zig() -> str:
+    """Find a version of Zig new enough to build @pkmn/engine, installing it if needed.
+
+    Returns:
+        str: the path to a usable Zig executable
+    """
+    global got_own_zig
     log("Looking for a Zig compiler...")
     system_zig = shutil.which("zig")
     if system_zig is not None:
@@ -92,12 +133,19 @@ def find_zig() -> str:
         if is_new_enough(parse_zig_version(system_zig_env['version'])):
             return system_zig
         else:
-            log(f"Found installed Zig, but the version ({system_zig_env['version']}) is too old :(", color=ORANGE)
+            log(
+                f"Found installed Zig, but the version ({system_zig_env['version']}) is too old :(",
+                color=ORANGE,
+            )
 
-    got_own_zig = True # TODO: clean up at the end
+    got_own_zig = True
     log("Fetching Zig download index")
     zig_download_index = requests.get(ZIG_DOWNLOAD_INDEX_URL).json()
-    newest_version = sorted(zig_download_index.keys(), key=lambda x: parse_zig_version(x), reverse=True).pop()
+    newest_version = sorted(
+        zig_download_index.keys(),
+        key=lambda x: parse_zig_version(x),
+        reverse=True,
+    ).pop()
     if is_new_enough(parse_zig_version(newest_version)):
         version = newest_version
     else:
@@ -106,12 +154,18 @@ def find_zig() -> str:
     arch = platform.machine()
     system = platform.system().lower()
 
-    if system == "darwin": system = "macos"
-    if arch == "AMD64": arch = "x86_64"
+    if system == "darwin":
+        system = "macos"
+    if arch == "AMD64":
+        arch = "x86_64"
 
     zig_platform = f'{arch}-{system}'
     if zig_platform not in zig_download_index[version]:
-        log(f"Couldn't find a Zig compiler for your platform ({zig_platform}). Please manually install Zig; version {version} should be compatible with pykmn.", color=RED)
+        log(
+            f"Couldn't find a Zig compiler for your platform ({zig_platform}). " +
+            "Please manually install Zig; version {version} should be compatible with pykmn.",
+            color=RED
+        )
         exit(1)
 
     tarball_url = zig_download_index[version][zig_platform]['tarball']
@@ -133,8 +187,12 @@ def find_zig() -> str:
 
     hash_value = hash.hexdigest()
     if hash_value != zig_download_index[version][zig_platform]['shasum']:
-        log(f"SHA-256 hash for downloaded Zig doesn't match (got {hash_value}, expected {zig_download_index[version][zig_platform]['shasum']})", color=RED)
-        log(f"The download may be corrupted; please try again.", color=RED)
+        log(
+            f"SHA-256 hash for downloaded Zig doesn't match (got {hash_value}, " +
+            f"expected {zig_download_index[version][zig_platform]['shasum']})",
+            color=RED,
+        )
+        log("The download may be corrupted; please try again.", color=RED)
         exit(1)
     else:
         log(f"Verified downloaded Zig (hash={hash_value})")
@@ -146,18 +204,30 @@ def find_zig() -> str:
     zig_directory = tarball_name[0:-4] if tarball_name.endswith(".zip") else tarball_name[0:-7]
     return os.path.join(os.getcwd(), "zig-toolchain", zig_directory, "zig")
 
-# Gets the git submodule
+
 def fetch_pkmn_engine() -> None:
+    """Fetch the @pkmn/engine submodule and fail if git isn't installed.
+
+    This might not be necessary; I should check sometime.
+    """
     log("Fetching @pkmn/engine code")
     try:
         subprocess.call(['git', 'submodule', 'init'])
         subprocess.call(['git', 'submodule', 'update'])
-    except:
-        log("Couldn't fetch pkmn-engine submodule. Please make sure you have git installed.", color=RED)
+    except FileNotFoundError:
+        log(
+            "Couldn't fetch pkmn-engine submodule. Please make sure you have git installed.",
+            color=RED
+        )
         exit(1)
 
-# Builds the @pkmn/engine library
+
 def build_pkmn_engine(zig_path: str) -> None:
+    """Build the @pkmn/engine library, populating the zig-out directory with a library.
+
+    Args:
+        zig_path (str): the path to the Zig executable
+    """
     log("Building @pkmn/engine")
     try:
         # TODO: support -Dshowdown, -Dtrace
@@ -171,8 +241,18 @@ def build_pkmn_engine(zig_path: str) -> None:
         else:
             log("Using existing engine/zig-out...")
 
-# Simplifies the pkmn.h file so that cffi can parse it
+
 def simplify_pkmn_header(header_text: str) -> str:
+    """Simplifiy the pkmn.h file so that cffi can parse it.
+
+    Currently discussing whether to do this or just hardcode a copy/pasted slimmed-down pkmn.h
+
+    Args:
+        header_text (str): The text of pkmn.h
+
+    Returns:
+        str: the simplified, parseable header declarations
+    """
     # Remove anything C++-specific
     without_cpp_only = re.sub(r'#ifdef __cplusplus(.*?)#endif', "", header_text, flags=re.DOTALL)
     # Remove preprocessor directives: #ifndef, #ifdef, #include, #endif
@@ -180,8 +260,17 @@ def simplify_pkmn_header(header_text: str) -> str:
     # Remove defines that are NOT numeric constants
     without_defines = re.sub(r"#define [^\s]{1,}(\s[^\d]+)?\n", "", without_preprocessor)
     # remove PKMN_OPAQUE definition replace PKMN_OPAQUE types with their definition
-    without_pkmn_opaque_definition = without_defines.replace("#define PKMN_OPAQUE(n) typedef struct { uint8_t bytes[n]; }\n", "")
-    return re.sub(r'PKMN_OPAQUE\(([^)]*)\)', r'typedef struct { uint8_t bytes[\1]; }', without_pkmn_opaque_definition)
+    without_pkmn_opaque_definition = without_defines.replace(
+        "#define PKMN_OPAQUE(n) typedef struct { uint8_t bytes[n]; }\n",
+        "",
+    )
+
+    return re.sub(
+        r'PKMN_OPAQUE\(([^)]*)\)',
+        r'typedef struct { uint8_t bytes[\1]; }',
+        without_pkmn_opaque_definition,
+    )
+
 
 zig_path = find_zig()
 log(f"Using Zig at {zig_path}")
