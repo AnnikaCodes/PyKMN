@@ -4,7 +4,7 @@ import os
 from typing import List, TypedDict, Dict
 
 our_directory = os.path.dirname(__file__)
-json_path = os.path.join(our_directory, "..", "..", "engine", "src", "data", "data.json")
+json_path = os.path.join(our_directory, "data.json")
 raw_json = json.load(open(json_path))
 
 Gen1StatData = TypedDict(

@@ -268,6 +268,10 @@ def simplify_pkmn_header(header_text: str) -> str:
 
 build_pkmn_engine()
 
+# Copy data json in
+json_path = os.path.join(os.getcwd(), "engine", "src", "data", "data.json")
+shutil.copyfile(json_path, os.path.join(os.getcwd(), "pykmn", "data", "data.json"))
+
 ffibuilder = FFI()
 zig_out_path = os.path.join(os.getcwd(), "engine", "zig-out")
 pkmn_h_path = os.path.join(zig_out_path, "include", "pkmn.h")

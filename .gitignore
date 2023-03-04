@@ -3,12 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-/zig-out
+zig-out
 /zig-toolchain
 /zig-*.tar.xz
 /zig-*.zip
 _pkmn_engine_bindings.*
-
+/pykmn/data/data.json
 # C extensions
 *.so
 
