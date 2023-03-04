@@ -19,6 +19,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
 
     - name: Install Python
       uses: actions/setup-python@v3
@@ -28,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: python3 -m pip install flake8 mypy flake8-docstrings build
         coverage cffi requests
-        types-cffi types-requests types-setuptools && git submodule init && git submodule update
+        types-cffi types-requests types-setuptools
 
     - name: Set up debugging tmate session
       uses: mxschmitt/action-tmate@v3
