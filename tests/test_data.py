@@ -28,6 +28,10 @@ class TestGen1Data(unittest.TestCase):
         """Gen I has 15 types."""
         self.assertEqual(len(data.gen1.TYPES), 15)
 
+    def test_libpkmn_ids(self):
+        """Gen I libpkmn move IDs."""
+        self.assertEqual(data.gen1.LIBPKMN_MOVE_IDS['Karate Chop'], 2)
+
 
 class TestGen2Data(unittest.TestCase):
     """Tests for Gen II data.

@@ -1,5 +1,6 @@
 """Python wrappers for libpkmn's random number generation features."""
 from _pkmn_engine_bindings import ffi, lib  # type: ignore # noqa: F401
+import bitstring  # type: ignore
 
 
 class ShowdownRNG:
@@ -28,3 +29,16 @@ class ShowdownRNG:
             int: The next number produced by the RNG.
         """
         return lib.pkmn_psrng_next(self._psrng)
+
+    def _to_bits(self) -> bitstring.Bits:
+        """
+        Packs the RNG into a bitstring.
+
+        Library consumers shouldn't need this.
+        """
+        bits = bitstring.Bits(bytes=self._psrng.bytes)
+        assert bits.length == lib.PKMN_PSRNG_SIZE * 8, (
+            f"The RNG should be {lib.PKMN_PSRNG_SIZE * 8} bits long, "
+            f"but it's {bits.length} bits long."
+        )
+        return bits

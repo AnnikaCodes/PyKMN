@@ -7,3 +7,5 @@ The following specific modules are not re-imported to the top level here:
 """
 from pykmn.engine.common import BattleChoiceType, BattleChoice, ResultType, \
     Result, Player, Softlock  # noqa: F401
+from pykmn import engine  # noqa: F401
+from pykmn.engine import gen1, rng  # noqa: F401
