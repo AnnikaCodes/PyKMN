@@ -25,10 +25,10 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Install testing tools
+    - name: Install dependencies
       run: python3 -m pip install flake8 mypy flake8-docstrings build
         coverage cffi requests
-        types-cffi types-requests types-setuptools
+        types-cffi types-requests types-setuptools && git submodule init && git submodule update
 
     - name: Set up debugging tmate session
       uses: mxschmitt/action-tmate@v3

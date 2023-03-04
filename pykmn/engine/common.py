@@ -84,6 +84,13 @@ class Result:
         """
         return lib.pkmn_error(self._pkmn_result)
 
+    def __repr__(self) -> str:
+        """Provide a string representation of the Result."""
+        return (
+            f"Result(type: {self.type()}, player 1 choice: {self.p1_choice_type()}, "
+            f"player 2 choice: {self.p2_choice_type()})"
+        )
+
 
 class BattleChoice:
     """Represents a choice a player makes in a Pokémon battle.
@@ -103,6 +110,36 @@ class BattleChoice:
         Use the `possible_choices` method of the Battle class to get BattleChoice objects.
         """
         self._pkmn_choice = _pkmn_choice  # uint8_t
+
+    def type(self) -> BattleChoiceType:
+        """Get the type of the choice (pass/move/switch).
+
+        Python version of pkmn_choice_type.
+        """
+        return BattleChoiceType(lib.pkmn_choice_type(self._pkmn_choice))
+
+    def data(self) -> int | None:
+        """Get the data associated with the choice.
+
+        Returns:
+            int | None: slot number for a switch or move index for a move
+        """
+        if self.type() == BattleChoiceType.PASS:
+            return None
+        return lib.pkmn_choice_data(self._pkmn_choice)
+
+    def __repr__(self) -> str:
+        """Provide a string representation of the BattleChoice."""
+        type = self.type()
+        if type == BattleChoiceType.MOVE:
+            data = self.data()
+            if data == 0:
+                return "BattleChoice(can't select a move)"
+            return f"BattleChoice(move #{self.data()})"
+        elif type == BattleChoiceType.SWITCH:
+            return f"BattleChoice(switch to slot #{self.data()})"
+        else:
+            return "BattleChoice(pass)"
 
 
 class Softlock(Exception):

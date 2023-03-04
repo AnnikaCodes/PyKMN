@@ -205,23 +205,6 @@ def find_zig() -> str:
     return os.path.join(os.getcwd(), "zig-toolchain", zig_directory, "zig")
 
 
-def fetch_pkmn_engine() -> None:
-    """Fetch the libpkmn submodule and fail if git isn't installed.
-
-    This might not be necessary; I should check sometime.
-    """
-    log("Fetching libpkmn code")
-    try:
-        subprocess.call(['git', 'submodule', 'init'])
-        subprocess.call(['git', 'submodule', 'update'])
-    except FileNotFoundError:
-        log(
-            "Couldn't fetch pkmn-engine submodule. Please make sure you have git installed.",
-            color=RED
-        )
-        exit(1)
-
-
 def build_pkmn_engine() -> None:
     """Build libpkmn, populating the zig-out directory with a library file."""
     output_path = Path("engine/zig-out/lib")
@@ -283,7 +266,6 @@ def simplify_pkmn_header(header_text: str) -> str:
     )
 
 
-fetch_pkmn_engine()
 build_pkmn_engine()
 
 ffibuilder = FFI()
