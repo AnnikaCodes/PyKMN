@@ -230,7 +230,7 @@ def build_pkmn_engine() -> None:
 
         zig_path = find_zig()
         log(f"Building libpkmn with Zig at {zig_path}")
-        subprocess.call([zig_path, "build", "-Dpic=true", "-Doptimize=ReleaseFast"], cwd="engine")
+        subprocess.call([zig_path, "build", "-Dpic=true", "-Dshowdown=true", "-Dtrace=true", "-Doptimize=ReleaseFast"], cwd="engine")
     except Exception as e:
         log(f"Failed to build libpkmn. Error: {e}", color=RED)
         exit(1)
@@ -282,7 +282,7 @@ ffibuilder.cdef(simplify_pkmn_header(header_text))
 ffibuilder.set_source(
     "_pkmn_engine_bindings",
     f"#include \"{pkmn_h_path}\"",
-    libraries=['pkmn'],
+    libraries=['pkmn-showdown'],
     library_dirs=[os.path.join(zig_out_path, "lib")],
     extra_compile_args=["-fPIC", "-shared"],
     extra_link_args=["-fPIC"],

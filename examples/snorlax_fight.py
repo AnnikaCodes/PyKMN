@@ -17,7 +17,6 @@ team2 = [Pokemon('Snorlax', [
 
 battle = Battle(Side(team1), Side(team2))
 
-result = battle.update(BattleChoice(0), BattleChoice(0))
 while True:
     p1_choice = random.choice(battle.possible_choices(Player.P1, BattleChoiceType.MOVE))
     p2_choice = random.choice(battle.possible_choices(Player.P2, BattleChoiceType.MOVE))

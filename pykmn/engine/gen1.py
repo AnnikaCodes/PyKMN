@@ -533,13 +533,15 @@ class Battle:
             Result: The result of the choice.
         """
         # TODO: trace?
+        trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_MAX_LOGS)
         _pkmn_result = lib.pkmn_gen1_battle_update(
             self._pkmn_battle,  # pkmn_gen1_battle *battle
             p1_choice._pkmn_choice,          # pkmn_choice c1
             p2_choice._pkmn_choice,          # pkmn_choice c2
-            ffi.NULL,           # uint8_t *buf
-            0,                  # size_t len
+            trace_buf,           # uint8_t *buf
+            lib.PKMN_GEN1_MAX_LOGS,                  # size_t len
         )
+        print(f"TRACE: {list(trace_buf)}")
 
         result = Result(_pkmn_result)
         if result.is_error():
