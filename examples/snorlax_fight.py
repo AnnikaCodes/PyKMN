@@ -1,4 +1,5 @@
-from pykmn.engine.gen1 import Move, Pokemon, Battle, Side, Player, BattleChoice, BattleChoiceType
+"""Test script."""
+from pykmn.engine.gen1 import Move, Pokemon, Battle, Side, Player, BattleChoiceType
 from pykmn.engine.common import ResultType
 import random
 

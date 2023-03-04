@@ -230,7 +230,10 @@ def build_pkmn_engine() -> None:
 
         zig_path = find_zig()
         log(f"Building libpkmn with Zig at {zig_path}")
-        subprocess.call([zig_path, "build", "-Dpic=true", "-Dshowdown=true", "-Dtrace=true", "-Doptimize=ReleaseFast"], cwd="engine")
+        subprocess.call([
+            zig_path, "build", "-Dpic=true",
+            "-Dshowdown=true", "-Dtrace=true", "-Doptimize=ReleaseFast",
+        ], cwd="engine")
     except Exception as e:
         log(f"Failed to build libpkmn. Error: {e}", color=RED)
         exit(1)

@@ -348,6 +348,7 @@ def _pack_move_slot(slot: MoveSlot) -> Bits:
     assert bits.length == 16, f"MoveSlot is {bits.length} bits long, but should be 16 bits long."
     return bits
 
+
 class ActivePokemon:
     """idk anymore."""
 
@@ -357,7 +358,13 @@ class ActivePokemon:
     # int is the amount of PP they have left
     moveslots: List[MoveSlot]
 
-    def __init__(self, name: str, boosts: Boosts = Boosts(), volatiles: Volatiles = Volatiles(), moveslots = [(Move('None'), 0)] * 4):
+    def __init__(
+        self,
+        name: str,
+        boosts: Boosts = Boosts(),
+        volatiles: Volatiles = Volatiles(),
+        moveslots=[(Move('None'), 0)] * 4,
+    ):
         """Construct a new ActivePokemon object."""
         if name not in SPECIES and name != 'None':
             raise Exception(f"'{name}' is not a valid Pokémon name in Generation I.")
@@ -584,7 +591,7 @@ class Battle:
             raise Softlock("Zero choices are available.")
 
         print(f"num_choices: {num_choices}")
-        print(f"raw_choices: {raw_choices[0]}, {raw_choices[1]}, {raw_choices[2]}, {raw_choices[3]}")
+        print(f"rawchoices: {raw_choices[0]}, {raw_choices[1]}, {raw_choices[2]}, {raw_choices[3]}")
         choices: List[BattleChoice] = []
         for i in range(num_choices):
             choices.append(BattleChoice(raw_choices[i]))
