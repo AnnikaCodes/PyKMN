@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-PYkmn redistributes portions of libpkmn (in the engine/ directory and the pykmn/data/data.json file).
+PYkmn redistributes portions of libpkmn (in the engine/ directory and the pykmn/data/*.json files).
 These portions are licensed under libpkmn's license, reproduced below:
 
 The MIT License (MIT)

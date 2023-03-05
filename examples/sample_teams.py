@@ -40,8 +40,8 @@ team2 = [
 def run_battle(log=False) -> int:
     """Run a battle. Returns # of turns."""
     battle = Battle(Side(team1, list(range(1, 7))), Side(team2, list(range(1, 7))))
-    print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
-    print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
+    # print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
+    # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
     (result, _) = battle.update(BattleChoice(0), BattleChoice(0))
     if log:
         print(f"RESULT: {result}")
@@ -68,8 +68,8 @@ def run_battle(log=False) -> int:
 
 
 # turns_taken = []
-# for i in range(1000):
-#     turns_taken.append(run_battle())
+# for i in range(10000):
+#     run_battle()
 
 # n = len(turns_taken)
 # avg = round(sum(turns_taken) / n)

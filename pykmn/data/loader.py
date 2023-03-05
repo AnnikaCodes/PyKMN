@@ -4,8 +4,12 @@ import os
 from typing import List, TypedDict, Dict
 
 our_directory = os.path.dirname(__file__)
-json_path = os.path.join(our_directory, "data.json")
-raw_json = json.load(open(json_path))
+
+data_json_path = os.path.join(our_directory, "data.json")
+data_json = json.load(open(data_json_path))
+
+protocol_json_path = os.path.join(our_directory, "protocol.json")
+protocol_json = json.load(open(protocol_json_path))
 
 Gen1StatData = TypedDict(
     'Gen1StatData',
@@ -23,14 +27,14 @@ Gen2SpeciesData = TypedDict(
 )
 
 """A list of Pokémon type names."""
-GEN1_TYPES: List[str] = raw_json[0]["types"]
+GEN1_TYPES: List[str] = data_json[0]["types"]
 
 """
 A dictionary of Pokémon species data.
 
 Species names are keys.
 """
-GEN1_SPECIES: Dict[str, Gen1SpeciesData] = raw_json[0]["species"]
+GEN1_SPECIES: Dict[str, Gen1SpeciesData] = data_json[0]["species"]
 
 """
 A dictionary of Pokémon species data.
@@ -46,7 +50,7 @@ A dictionary of Pokémon move data.
 
 Move names are keys, and values are PP.
 """
-GEN1_MOVES: Dict[str, int] = raw_json[0]["moves"]
+GEN1_MOVES: Dict[str, int] = data_json[0]["moves"]
 
 """
 A dictionary of Pokémon move data.
@@ -57,22 +61,33 @@ GEN1_LIBPKMN_MOVE_IDS: Dict[str, int] = {'None': 0}
 for (index, move_name) in enumerate(list(GEN1_MOVES.keys())):
     GEN1_LIBPKMN_MOVE_IDS[move_name] = index + 1
 
+
 """A list of Pokémon type names."""
-GEN2_TYPES: List[str] = raw_json[1]["types"]
+GEN2_TYPES: List[str] = data_json[1]["types"]
 
 """
 A dictionary of Pokémon species data.
 
 Species names are keys.
 """
-GEN2_SPECIES: Dict[str, Gen2SpeciesData] = raw_json[1]["species"]
+GEN2_SPECIES: Dict[str, Gen2SpeciesData] = data_json[1]["species"]
 
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are PP.
 """
-GEN2_MOVES: Dict[str, int] = raw_json[1]["moves"]
+GEN2_MOVES: Dict[str, int] = data_json[1]["moves"]
 
 """A list of Pokémon item names."""
-GEN2_ITEMS: List[str] = raw_json[1]["items"]
+GEN2_ITEMS: List[str] = data_json[1]["items"]
+
+"""A list of protocol message names. Indices are what the binary protocol uses."""""
+PROTOCOL_MESSAGES: List[str] = protocol_json["ArgType"]
+
+del protocol_json["ArgType"]
+"""
+A dictionary whose keys are protocol message names,
+and values are lists of possible values for Reason.
+"""
+PROTOCOL_REASON_LOOKUP: Dict[str, List[str]] = protocol_json

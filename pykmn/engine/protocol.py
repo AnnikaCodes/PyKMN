@@ -1,88 +1,50 @@
 """Code to handle libpkmn binary protocol."""
 from typing import List, Dict
-from enum import IntEnum
 from pykmn.data.gen1 import LIBPKMN_MOVE_IDS, LIBPKMN_SPECIES_IDS
-from pykmn.engine.gen1 import Status
+from pykmn.data.protocol import MESSAGES, REASON_LOOKUP
 
 moveid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_MOVE_IDS.items()}
 speciesid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_SPECIES_IDS.items()}
 
 
-# see https://github.com/pkmn/engine/blob/main/docs/PROTOCOL.md
-class MessageType(IntEnum):
-    """The type of a message."""
-
-    TERMINATOR = 0x00
-    MOVE = 0x03
-    SWITCH = 0x04
-    CANNOT = 0x05
-    FAINT = 0x06
-    TURN = 0x07
-    WIN = 0x08
-    TIE = 0x09
-    DAMAGE = 0x0A
-    HEAL = 0x0B
-    STATUS = 0x0C
-    CURE_STATUS = 0x0D
-    BOOST = 0x0E
-    CLEAR_ALL_BOOSTS = 0x0F
-    FAIL = 0x10
-    MISS = 0x11
-    HIT_COUNT = 0x12
-    PREPARE = 0x13
-    MUST_RECHARGE = 0x14
-    ACTIVATE = 0x15
-    FIELD_ACTIVATE = 0x16
-    START = 0x17
-    END = 0x18
-    OHKO = 0x19
-    CRIT = 0x1A
-    SUPEREFFECTIVE = 0x1B
-    RESISTED = 0x1C
-    IMMUNE = 0x1D
-    TRANSFORM = 0x1E
-
-
-def ident_to_human(ident: int, include_position=False) -> str:
+def parse_identifier(ident: int) -> str:
     """Parse a Pokémon identifier.
 
     Args:
         ident (int): the PokemonIdent byte
 
     Returns:
-        str: the human-readable identifier
+        str: the identifier
     """
+    position = 'b' if ((ident >> 4) & 1) == 1 else 'a'
     # 5th most significant bit is the player number
     player = '2' if ((ident >> 3) & 1) == 1 else '1'
     # lowest 3 bits are the slot number
     slot = str(ident & 0x07)
-    msg = f"Player {player}'s Pokémon in slot {slot}"
-    if include_position:
-        # 4th most significant bit is the position
-        position = 'b' if ((ident >> 4) & 1) == 1 else 'a'
-        msg += f", position {position}"
+    msg = f"p{player}{position}: Pokémon #{slot}"  # TODO: support passing in a slot<->name map
     return msg
 
 
-def move_to_human(moveid: int) -> str:
+def parse_move(moveid: int) -> str:
     """Parse a move identifier.
 
     Args:
         move (int): the MoveIdent byte
 
     Returns:
-        str: the human-readable identifier
+        str: the identifier
     """
     return moveid_to_name_map[moveid]
 
-def status_to_human(status: int) -> str:
+
+def parse_status(status: int) -> str:
     """Parse a status identifier.
 
     Args:
         status (int): the StatusIdent byte
 
     Returns:
-        str: the human-readable identifier
+        str: the identifier
     """
     # code is from @pkmn/engine
     # https://github.com/pkmn/engine/blob/main/src/pkg/protocol.ts#L436-L446
@@ -101,47 +63,48 @@ def status_to_human(status: int) -> str:
     return 'healthy'
 
 
-def binary_to_human(binary_protocol: List[int]) -> List[str]:
-    """Convert libpkmn binary protocol to human-readable messages.
+def parse_protocol(binary_protocol: List[int]) -> List[str]:
+    """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
 
     Args:
         binary_protocol (List[int]): An array of byte-length integers of libpkmn protocol.
 
     Returns:
-        List[str]: An array of human-readable messages.
+        List[str]: An array of PS protocol messages.
     """
     bytes_iterator = iter(binary_protocol)
     messages: List[str] = []
     while True:
         try:
-            msg_type = next(bytes_iterator)
+            msg_type_byte = next(bytes_iterator)
         except StopIteration:
             return messages
 
-        if msg_type == MessageType.TERMINATOR:
+        msg_type = MESSAGES[msg_type_byte]
+
+        if msg_type == "None":
             return messages
 
-        elif msg_type == MessageType.MOVE:
-            source = ident_to_human(next(bytes_iterator))
-            move = move_to_human(next(bytes_iterator))
-            target = ident_to_human(next(bytes_iterator))
-            msg = f"{source} used {move} on {target}"
-            reason = next(bytes_iterator)
-            if reason == 0x02:
-                msg += f"(from {move_to_human(next(bytes_iterator))})"
-            messages.append(msg + ".")
+        elif msg_type == "Move":
+            source = parse_identifier(next(bytes_iterator))
+            move = parse_move(next(bytes_iterator))
+            target = parse_identifier(next(bytes_iterator))
+            msg = f"|move|{source}|{move}|{target}"
+            reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
+            if reason == "From":
+                msg += f"|from|{parse_move(next(bytes_iterator))})"
+            messages.append(msg)
 
-        elif msg_type == MessageType.SWITCH:
-            position = ident_to_human(next(bytes_iterator))
+        elif msg_type == "Switch" or msg_type == "Drag":
+            pokemon = parse_identifier(next(bytes_iterator))
             species = speciesid_to_name_map[next(bytes_iterator)]
             level = next(bytes_iterator)
             current_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
             max_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            status = status_to_human(next(bytes_iterator))
+            status = parse_status(next(bytes_iterator))
 
             messages.append(
-                f"A {status} level {level} {species} with {current_hp}/{max_hp} HP" +
-                f" switched in for {position}."
+                f"|{msg_type.lower()}|{pokemon}|{species}, L{level}|{current_hp}/{max_hp} {status}"
             )
 
         elif msg_type == MessageType.CANNOT:

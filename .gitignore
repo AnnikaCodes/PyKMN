@@ -10,6 +10,7 @@ zig-out
 /zig-*.zip
 _pkmn_engine_bindings.*
 /pykmn/data/data.json
+/pykmn/data/protocol.json
 # C extensions
 *.so
 
