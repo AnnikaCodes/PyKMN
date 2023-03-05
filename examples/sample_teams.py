@@ -48,17 +48,19 @@ def run_battle(log=False) -> int:
     turn = 1
     while True:
         if log:
-            print(f"\n\n------------ TURN {turn} ------------")
+            print(f"\n------------ Turn {turn} ------------")
         turn += 1
         p1_choice = random.choice(battle.possible_choices(Player.P1, result.p1_choice_type()))
         p2_choice = random.choice(battle.possible_choices(Player.P2, result.p2_choice_type()))
         if log:
             print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
         (result, trace) = battle.update(p1_choice, p2_choice)
-        print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
-        print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
-        # if log:
-        #     print(binary_to_human(trace))
+        # print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
+        # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
+        if log:
+            print("\nTrace: ")
+            for msg in binary_to_human(trace):
+                print("* " + msg)
         if result.type() != ResultType.NONE:
             if log:
                 print(f"RESULT: {result}")
