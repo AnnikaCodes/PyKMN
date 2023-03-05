@@ -215,7 +215,6 @@ def moves(*args):
     return [Move(move) for move in args]
 
 # MAJOR TODO!
-# * fix stat calculation
 # * reverse it so that there are _from_bits() methods as well
 # * write unit tests
 # * make this use raw memory and bit twiddling instead of bitstring
@@ -515,6 +514,8 @@ def _pack_move_indexes(p1: int, p2: int) -> List[Bits]:
 class Battle:
     """A Generation I Pokémon battle."""
 
+    _bits: Bits | None
+
     def __init__(
         self,
         p1_side: Side,
@@ -548,6 +549,7 @@ class Battle:
         # uintne == unsigned integer, native endian
         self._pkmn_battle = ffi.new("pkmn_gen1_battle*")
         self._pkmn_battle.bytes = battle_data.tobytes()
+        self._bits = battle_data
 
     def update(self, p1_choice: BattleChoice, p2_choice: BattleChoice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.

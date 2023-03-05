@@ -5,6 +5,17 @@ from pykmn.engine.protocol import binary_to_human
 
 import random
 
+def hexfmt(b):
+    battle_hex = ""
+    n = 0
+    for x in b:
+        battle_hex += f"{x:0>2x} "
+        if n % 32 == 31:
+            battle_hex += "\n"
+        n += 1
+    return battle_hex
+
+
 # https://pokepast.es/cc9b111c9f81f6a4
 team1 = [
     Pokemon("Starmie", moves("Psychic", "Blizzard", "Thunder Wave", "Recover")),
@@ -29,7 +40,8 @@ team2 = [
 def run_battle(log=False) -> int:
     """Run a battle. Returns # of turns."""
     battle = Battle(Side(team1, list(range(1, 7))), Side(team2, list(range(1, 7))))
-
+    print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
+    print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
     (result, _) = battle.update(BattleChoice(0), BattleChoice(0))
     if log:
         print(f"RESULT: {result}")
@@ -43,8 +55,10 @@ def run_battle(log=False) -> int:
         if log:
             print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
         (result, trace) = battle.update(p1_choice, p2_choice)
-        if log:
-            print(binary_to_human(trace))
+        print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
+        print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
+        # if log:
+        #     print(binary_to_human(trace))
         if result.type() != ResultType.NONE:
             if log:
                 print(f"RESULT: {result}")
