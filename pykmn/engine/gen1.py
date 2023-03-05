@@ -2,8 +2,8 @@
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, BattleChoiceType, Softlock, BattleChoice
 from pykmn.engine.rng import ShowdownRNG
-from pykmn.data.gen1 import Gen1StatData, Gen1SpeciesData, LIBPKMN_MOVE_IDS, LIBPKMN_SPECIES_IDS, \
-    SPECIES, TYPES
+from pykmn.data.gen1 import Gen1StatData, LIBPKMN_MOVE_IDS, LIBPKMN_SPECIES_IDS, \
+    SPECIES, TYPES, MOVES
 
 from typing import List, Tuple
 from bitstring import Bits  # type: ignore
@@ -92,13 +92,45 @@ class Move:
         """Pack the move into a bitstring."""
         return Bits(uintne=self.id, length=8)
 
+    def _to_slot_bits(self, pp: int | None = None) -> Bits:
+        """Pack the move into a bitstring with PP."""
+        if pp is None:
+            pp = math.trunc(MOVES[self.name] * 8 / 5)
+        return Bits().join([
+            self._to_bits(),
+            Bits(uintne=pp, length=8)
+        ])
+
     def __repr__(self) -> str:
         """Return a string representation of the move."""
         return f"Move({self.name}, id={self.id})"
 
 
-"""(Move, PP) tuple"""
-MoveSlot = Tuple[Move, int]
+def statcalc(
+    base_value: int,
+    is_HP: bool = False,
+    level: int = 100,
+    dv: int = 15,
+    experience: int = 65535
+) -> int:
+    """Calculate a Pokémon's stats based on its level, base stats, and so forth.
+
+    Args:
+        base_value (int): The base value of the stat for this species.
+        dv (int): The Pokémon's DV for this stat.
+        level (int): The level of the Pokémon.
+        is_HP (bool, optional): Whether the stat is HP or not. Defaults to False.
+
+    Returns:
+        int: The value of the stat
+    """
+    # 64 = std.math.sqrt(exp) / 4 when exp = 65535 (0xFFFF)
+    # const core: u32 = (2 *% (@as(u32, base) +% dv)) +% @as(u32, (std.math.sqrt(exp) / 4));
+    core = (2 * (base_value + dv)) + math.trunc(math.sqrt(experience) / 4)
+    # const factor: u32 = if (std.mem.eql(u8, stat, "hp")) level + 10 else 5;
+    factor = (level + 10) if is_HP else 5
+    # return @truncate(T, core *% @as(u32, level) / 100 +% factor);
+    return (core * math.trunc(level / 100) + factor) % 2**16
 
 
 # TODO: make all these classes simple wrappers around binary and have staticmethods to generate them
@@ -108,11 +140,14 @@ class Pokemon:
     def __init__(
         self,
         name: str,
-        moves: List[MoveSlot],
+        moves: List[Move],
         level: int = 100,
         hp: int | None = None,
         status: Status = Status.healthy(),
         dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0},
+        experience: Gen1StatData = {
+            'hp': 65535, 'atk': 65535, 'def': 65535, 'spc': 65535, 'spe': 65535,
+        },
     ):
         """Construct a new Pokemon object.
 
@@ -127,29 +162,20 @@ class Pokemon:
         # ha ha left pokemon none species
         if name not in SPECIES and name != 'None':
             raise ValueError(f"'{name}' is not a valid Pokémon name in Generation I.")
-        data: Gen1SpeciesData
+
+        self.stats: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
         if name != 'None':
-            data = SPECIES[name]
+            self.types = SPECIES[name]['types']
+            for stat in SPECIES[name]['stats']:
+                self.stats[stat] = statcalc(  # type: ignore
+                    base_value=SPECIES[name]['stats'][stat],  # type: ignore
+                    level=level,
+                    dv=dvs[stat],  # type: ignore
+                    is_HP=stat == 'hp',
+                )
         else:
-            data = {
-                'stats': {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0},
-                'types': ['Normal', 'Normal']
-            }
+            self.types = ['Normal', 'Normal']
 
-        self.stats = data['stats']
-
-        # TODO: put this into a method and add unit tests
-        for stat in self.stats:
-            base = self.stats[stat]  # type: ignore
-            # 64 = std.math.sqrt(exp) / 4 when exp = 65535 (0xFFFF)
-            # const core: u32 = (2 *% (@as(u32, base) +% dv)) +% @as(u32, (std.math.sqrt(exp) / 4));
-            core = (2 * base + dvs[stat]) + 64  # type: ignore
-            # const factor: u32 = if (std.mem.eql(u8, stat, "hp")) level + 10 else 5;
-            factor = level + 10 if stat == 'hp' else 5
-            # return @truncate(T, core *% @as(u32, level) / 100 +% factor);
-            self.stats[stat] = math.trunc((core * level / 100 + factor) % 2**16)  # type: ignore
-
-        self.types = data['types']
         self.name = name
         self.moves = moves
         self.level = level
@@ -168,9 +194,8 @@ class Pokemon:
 
         # TODO: see if we can combine Move + MoveSlot?
         stats = _pack_stats(self.stats)
-        print(f"Stats to bits as {stats.tobytes().hex()}")
         bits = Bits().join(
-            [stats] + [_pack_move_slot(slot) for slot in self.moves] + [
+            [stats] + [move._to_slot_bits() for move in self.moves] + [
                 Bits(uintne=self.hp, length=16),
                 Bits(uintne=self.status.to_int(), length=8),
                 Bits(uintne=LIBPKMN_SPECIES_IDS[self.name], length=8),
@@ -183,6 +208,11 @@ class Pokemon:
         assert bits.length == 24 * 8, \
             f"Pokemon._to_bits() returned a bitstring of length {bits.length}, expected {24 * 8}"
         return bits
+
+
+def moves(*args):
+    """Convert a list of move names into a list of Move objects."""
+    return [Move(move) for move in args]
 
 # MAJOR TODO!
 # * fix stat calculation
@@ -363,79 +393,49 @@ class Volatiles:
         return bits
 
 
-def _pack_move_slot(slot: MoveSlot) -> Bits:
-    """Pack a move slot into a bitstring."""
-    bits = Bits().join([slot[0]._to_bits(), Bits(uintne=slot[1], length=8)])
-    assert bits.length == 16, f"MoveSlot is {bits.length} bits long, but should be 16 bits long."
-    return bits
+# class ActivePokemon:
+#     """idk anymore."""
 
+#     stats: Gen1StatData
+#     boosts: Boosts
+#     volatiles: Volatiles
+#     # int is the amount of PP they have left
+#     moveslots: List[MoveSlot]
 
-class ActivePokemon:
-    """idk anymore."""
+#     def __init__(
+#         self,
+#         name: str,
+#         boosts: Boosts = Boosts(),
+#         volatiles: Volatiles = Volatiles(),
+#         moveslots=[(Move('None'), 0)] * 4,
+#     ):
+#         """Construct a new ActivePokemon object."""
+#         if name not in SPECIES and name != 'None':
+#             raise Exception(f"'{name}' is not a valid Pokémon name in Generation I.")
 
-    stats: Gen1StatData
-    boosts: Boosts
-    volatiles: Volatiles
-    # int is the amount of PP they have left
-    moveslots: List[MoveSlot]
+#         self.stats: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
+#         if name != 'None':
+#             self.types = SPECIES[name]['types']
+#             for stat in SPECIES[name]['stats']:
+#                 self.stats[stat] = statcalc(  # type: ignore
+#                     base_value=SPECIES[name]['stats'][stat],  # type: ignore
+#                     level=level,
+#                     dv=dvs[stat],  # type: ignore
+#                     is_HP=stat == 'hp',
+#                 )
+#         else:
+#             self.types = ['Normal', 'Normal']
 
-    def __init__(
-        self,
-        name: str,
-        boosts: Boosts = Boosts(),
-        volatiles: Volatiles = Volatiles(),
-        moveslots=[(Move('None'), 0)] * 4,
-    ):
-        """Construct a new ActivePokemon object."""
-        if name not in SPECIES and name != 'None':
-            raise Exception(f"'{name}' is not a valid Pokémon name in Generation I.")
-        self.name = name
-        if name != 'None':
-            self.stats = SPECIES[name]['stats']
-            self.types = SPECIES[name]['types']
-        else:
-            self.stats = {'hp': 0, 'atk': 0, 'def': 0, 'spe': 0, 'spc': 0}
-            # this is the None-pokemon's type
-            # https://github.com/pkmn/engine/blob/main/src/lib/gen1/data/types.zig#L107-L108
-            self.types = ['Normal', 'Normal']
-
-        self.boosts = boosts
-        self.volatiles = volatiles
-        self.moveslots = moveslots
-
-    def _to_bits(self) -> Bits:
-        """Pack the active Pokémon into a bitstring."""
-        # TODO: functionize this
-        first_type = TYPES.index(self.types[0])
-        try:
-            second_type = TYPES.index(self.types[1])
-        except IndexError:
-            second_type = first_type
-
-        moveslots_bits = [_pack_move_slot(slot) for slot in self.moveslots]
-        assert _pack_stats(self.stats).length == 10 * 8
-        assert self.boosts._to_bits().length == 4 * 8
-        assert self.volatiles._to_bits().length == 8 * 8
-
-        bits = Bits().join([
-            _pack_stats(self.stats),
-            Bits(uintne=LIBPKMN_SPECIES_IDS[self.name], length=8),
-            Bits(uint=first_type, length=4),
-            Bits(uint=second_type, length=4),
-            self.boosts._to_bits(),
-            self.volatiles._to_bits(),
-        ] + moveslots_bits)
-
-        assert bits.length == 32 * 8, \
-            f'ActivePokemon should be {32 * 8} bits long, not {bits.length} bits long'
-        return bits
+#         self.boosts = boosts
+#         self.volatiles = volatiles
+#         self.moveslots = moveslots
 
 
 class Side:
     """A side in a Generation I battle."""
 
     team: List[Pokemon]
-    active: ActivePokemon
+    # active: ActivePokemon
     order: List[int]
     last_selected_move: Move
     last_used_move: Move
@@ -443,7 +443,7 @@ class Side:
     def __init__(
         self,
         team: List[Pokemon],
-        active: ActivePokemon | None = None,
+        # active: ActivePokemon | None = None,
         order: List[int] = [0, 0, 0, 0, 0, 0],
         last_selected_move: Move = Move('None'),
         last_used_move: Move = Move('None'),
@@ -452,16 +452,13 @@ class Side:
 
         Args:
             team (List[Pokemon]): The Pokémon on the side.
-            active (ActivePokemon): The active Pokémon on the side.
             order (List[int]): The order of the Pokémon on the side.
             last_selected_move (Move): The last move selected by the player.
             last_used_move (Move): The last move used by the player.
         """
-        if active is None:
-            active = ActivePokemon(team[0].name, Boosts(), Volatiles(), team[0].moves)
         assert len(order) == 6, f"Order must be 6, not {len(order)}, elements long."
         self.team = team
-        self.active = active
+        # self.active = active
         self.order = order
         self.last_selected_move = last_selected_move
         self.last_used_move = last_used_move
@@ -474,7 +471,8 @@ class Side:
         """
         bits = Bits().join(
             [pokemon._to_bits() for pokemon in self.team] +  # 6 Pokemon
-            [self.active._to_bits()] +  # ActivePokemon
+            # an all-zeroes region to be later replaced with ActivePokemon
+            [Bits(uint=0, length=32 * 8)] +
             [Bits(uintne=n, length=8) for n in self.order] + [  # order: 6 u8s
                 self.last_selected_move._to_bits(),
                 self.last_used_move._to_bits(),
@@ -490,7 +488,6 @@ def _pack_stats(stats: Gen1StatData) -> Bits:
 
     Use the Battle() constructor instead.
     """
-    print(stats)
     bits = Bits().join([
         Bits(uintne=stats['hp'], length=16),
         Bits(uintne=stats['atk'], length=16),
@@ -548,30 +545,29 @@ class Battle:
             f"The battle data should be {lib.PKMN_GEN1_BATTLE_SIZE * 8} bits long, "
             f"but it's {battle_data.length} bits long."
         )
-        print(f"Battle data: {battle_data.tobytes().hex(' ')}")
         # uintne == unsigned integer, native endian
         self._pkmn_battle = ffi.new("pkmn_gen1_battle*")
         self._pkmn_battle.bytes = battle_data.tobytes()
 
-    def update(self, p1_choice: BattleChoice, p2_choice: BattleChoice) -> Result:
+    def update(self, p1_choice: BattleChoice, p2_choice: BattleChoice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
 
         Args:
             choice (BattleChoice): The choice to make.
 
         Returns:
-            Result: The result of the choice.
+            Tuple[Result, List[int]]: The result of the choice,
+            and the trace as a list of protocol bytes
         """
-        # TODO: trace?
-        trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_MAX_LOGS)
+        # TODO: protocol parser?
+        trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOG_SIZE)
         _pkmn_result = lib.pkmn_gen1_battle_update(
-            self._pkmn_battle,  # pkmn_gen1_battle *battle
-            p1_choice._pkmn_choice,          # pkmn_choice c1
-            p2_choice._pkmn_choice,          # pkmn_choice c2
-            trace_buf,           # uint8_t *buf
-            lib.PKMN_GEN1_MAX_LOGS,                  # size_t len
+            self._pkmn_battle,          # pkmn_gen1_battle *battle
+            p1_choice._pkmn_choice,     # pkmn_choice c1
+            p2_choice._pkmn_choice,     # pkmn_choice c2
+            trace_buf,                  # uint8_t *buf
+            lib.PKMN_GEN1_LOG_SIZE,     # size_t len
         )
-        print(f"TRACE: {list(trace_buf)}")
 
         result = Result(_pkmn_result)
         if result.is_error():
@@ -585,7 +581,7 @@ class Battle:
                 "This should never happen; please file a bug report with PYkmn at " +
                 "https://github.com/AnnikaCodes/PYkmn/issues/new"
             )
-        return result
+        return (result, trace_buf)
 
     def possible_choices(
         self,
