@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 zig-out
+/zig-cache
 /zig-toolchain
 /zig-*.tar.xz
 /zig-*.zip

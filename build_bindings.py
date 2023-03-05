@@ -217,7 +217,8 @@ def build_pkmn_engine() -> None:
                 library_mtime = os.path.getmtime(os.path.join(output_path, library_file))
                 source_mtime = max(
                     max(os.path.getmtime(root) for root, _, _ in os.walk('engine/src')),
-                    os.path.getmtime('engine/build.zig')
+                    os.path.getmtime('engine/build.zig'),
+                    os.path.getmtime(__file__)  # changes to build_bindings.py
                 )
                 if library_mtime > source_mtime:
                     log(
@@ -232,7 +233,7 @@ def build_pkmn_engine() -> None:
         log(f"Building libpkmn with Zig at {zig_path}")
         subprocess.call([
             zig_path, "build", "-Dpic=true",
-            "-Dshowdown=true", "-Dtrace=true", "-Doptimize=ReleaseFast",
+            "-Dshowdown=true", "-Dtrace=true", "-Doptimize=Debug",
         ], cwd="engine")
     except Exception as e:
         log(f"Failed to build libpkmn. Error: {e}", color=RED)

@@ -9,6 +9,7 @@ from typing import List, Tuple
 from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
+import math
 
 
 class _InnerStatusEnum(Enum):
@@ -89,7 +90,7 @@ class Move:
 
     def _to_bits(self) -> Bits:
         """Pack the move into a bitstring."""
-        return Bits(uint=self.id, length=8)
+        return Bits(uintne=self.id, length=8)
 
     def __repr__(self) -> str:
         """Return a string representation of the move."""
@@ -100,6 +101,7 @@ class Move:
 MoveSlot = Tuple[Move, int]
 
 
+# TODO: make all these classes simple wrappers around binary and have staticmethods to generate them
 class Pokemon:
     """A Pokémon in a Generation I battle."""
 
@@ -108,8 +110,9 @@ class Pokemon:
         name: str,
         moves: List[MoveSlot],
         level: int = 100,
-        hp: int = 0,
+        hp: int | None = None,
         status: Status = Status.healthy(),
+        dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0},
     ):
         """Construct a new Pokemon object.
 
@@ -134,11 +137,23 @@ class Pokemon:
             }
 
         self.stats = data['stats']
+
+        # TODO: put this into a method and add unit tests
+        for stat in self.stats:
+            base = self.stats[stat]  # type: ignore
+            # 64 = std.math.sqrt(exp) / 4 when exp = 65535 (0xFFFF)
+            # const core: u32 = (2 *% (@as(u32, base) +% dv)) +% @as(u32, (std.math.sqrt(exp) / 4));
+            core = (2 * base + dvs[stat]) + 64  # type: ignore
+            # const factor: u32 = if (std.mem.eql(u8, stat, "hp")) level + 10 else 5;
+            factor = level + 10 if stat == 'hp' else 5
+            # return @truncate(T, core *% @as(u32, level) / 100 +% factor);
+            self.stats[stat] = math.trunc((core * level / 100 + factor) % 2**16)  # type: ignore
+
         self.types = data['types']
         self.name = name
         self.moves = moves
         self.level = level
-        self.hp = hp
+        self.hp = self.stats['hp'] if hp is None else hp
         self.status = status
 
     def _to_bits(self) -> Bits:
@@ -152,25 +167,31 @@ class Pokemon:
             second_type = first_type  # this
 
         # TODO: see if we can combine Move + MoveSlot?
+        stats = _pack_stats(self.stats)
+        print(f"Stats to bits as {stats.tobytes().hex()}")
         bits = Bits().join(
-            [_pack_stats(self.stats)] + [_pack_move_slot(slot) for slot in self.moves] + [
-                Bits(uint=self.hp, length=16),
-                Bits(uint=self.status.to_int(), length=8),
-                Bits(uint=LIBPKMN_SPECIES_IDS[self.name], length=8),
+            [stats] + [_pack_move_slot(slot) for slot in self.moves] + [
+                Bits(uintne=self.hp, length=16),
+                Bits(uintne=self.status.to_int(), length=8),
+                Bits(uintne=LIBPKMN_SPECIES_IDS[self.name], length=8),
                 Bits(uint=first_type, length=4),
                 Bits(uint=second_type, length=4),
-                Bits(uint=self.level, length=8),
+                Bits(uintne=self.level, length=8),
             ]
         )
+
         assert bits.length == 24 * 8, \
             f"Pokemon._to_bits() returned a bitstring of length {bits.length}, expected {24 * 8}"
         return bits
 
 # MAJOR TODO!
-# * implement ActivePokemon
-# * make all constructors check array lengths, etc, for validity
+# * fix stat calculation
 # * reverse it so that there are _from_bits() methods as well
 # * write unit tests
+# * make this use raw memory and bit twiddling instead of bitstring
+#   * each class's constructor just takes bits and then there's a static method for generation
+#   * getters should actually parse the bits
+# * make all constructors check array lengths, etc, for validity
 # * write a LOT of integration tests
 # * maybe more documentation?
 
@@ -211,7 +232,7 @@ class Boosts:
             Bits(int=self.special, length=4),
             Bits(int=self.accuracy, length=4),
             Bits(int=self.evasion, length=4),
-            Bits(int=0, length=8),  # padding
+            Bits(intne=0, length=8),  # padding
         ])
 
 
@@ -330,8 +351,8 @@ class Volatiles:
 
             Bits(uint=self.confusion, length=3),
             Bits(uint=self.attacks, length=3),
-            Bits(uint=self.state, length=16),
-            Bits(uint=self.substitute, length=8),
+            Bits(uintne=self.state, length=16),
+            Bits(uintne=self.substitute, length=8),
             Bits(uint=self.transform, length=4),
             Bits(uint=self.disabled_duration, length=4),
             Bits(uint=self.disabled_move, length=3),
@@ -344,7 +365,7 @@ class Volatiles:
 
 def _pack_move_slot(slot: MoveSlot) -> Bits:
     """Pack a move slot into a bitstring."""
-    bits = Bits().join([slot[0]._to_bits(), Bits(uint=slot[1], length=8)])
+    bits = Bits().join([slot[0]._to_bits(), Bits(uintne=slot[1], length=8)])
     assert bits.length == 16, f"MoveSlot is {bits.length} bits long, but should be 16 bits long."
     return bits
 
@@ -398,7 +419,7 @@ class ActivePokemon:
 
         bits = Bits().join([
             _pack_stats(self.stats),
-            Bits(uint=LIBPKMN_SPECIES_IDS[self.name], length=8),
+            Bits(uintne=LIBPKMN_SPECIES_IDS[self.name], length=8),
             Bits(uint=first_type, length=4),
             Bits(uint=second_type, length=4),
             self.boosts._to_bits(),
@@ -454,7 +475,7 @@ class Side:
         bits = Bits().join(
             [pokemon._to_bits() for pokemon in self.team] +  # 6 Pokemon
             [self.active._to_bits()] +  # ActivePokemon
-            [Bits(uint=n, length=8) for n in self.order] + [  # order: 6 u8s
+            [Bits(uintne=n, length=8) for n in self.order] + [  # order: 6 u8s
                 self.last_selected_move._to_bits(),
                 self.last_used_move._to_bits(),
             ]
@@ -469,12 +490,13 @@ def _pack_stats(stats: Gen1StatData) -> Bits:
 
     Use the Battle() constructor instead.
     """
+    print(stats)
     bits = Bits().join([
-        Bits(uint=stats['hp'], length=16),
-        Bits(uint=stats['atk'], length=16),
-        Bits(uint=stats['def'], length=16),
-        Bits(uint=stats['spe'], length=16),
-        Bits(uint=stats['spc'], length=16),
+        Bits(uintne=stats['hp'], length=16),
+        Bits(uintne=stats['atk'], length=16),
+        Bits(uintne=stats['def'], length=16),
+        Bits(uintne=stats['spe'], length=16),
+        Bits(uintne=stats['spc'], length=16),
     ])
     assert bits.length == 10 * 8, f"Stats length is {bits.length} bits, not {10 * 8} bits."
     return bits
@@ -488,8 +510,8 @@ def _pack_move_indexes(p1: int, p2: int) -> List[Bits]:
     """
     length = 16  # TODO: support non -Dshowdown here
     return Bits().join([
-        Bits(uint=p1, length=length),
-        Bits(uint=p2, length=length),
+        Bits(uintne=p1, length=length),
+        Bits(uintne=p2, length=length),
     ])
 
 
@@ -516,8 +538,8 @@ class Battle:
         battle_data = Bits().join([
             p2_side._to_bits(),                             # side 1
             p2_side._to_bits(),                             # side 2
-            Bits(uint=start_turn, length=16),     # turn
-            Bits(uint=last_damage, length=16),    # last damage
+            Bits(uintne=start_turn, length=16),     # turn
+            Bits(uintne=last_damage, length=16),    # last damage
             _pack_move_indexes(p1_move_idx, p2_move_idx),   # move indices
             rng._to_bits(),                                 # rng
         ])
@@ -526,6 +548,7 @@ class Battle:
             f"The battle data should be {lib.PKMN_GEN1_BATTLE_SIZE * 8} bits long, "
             f"but it's {battle_data.length} bits long."
         )
+        print(f"Battle data: {battle_data.tobytes().hex(' ')}")
         # uintne == unsigned integer, native endian
         self._pkmn_battle = ffi.new("pkmn_gen1_battle*")
         self._pkmn_battle.bytes = battle_data.tobytes()
@@ -590,10 +613,7 @@ class Battle:
         if num_choices == 0:
             raise Softlock("Zero choices are available.")
 
-        print(f"num_choices: {num_choices}")
-        print(f"rawchoices: {raw_choices[0]}, {raw_choices[1]}, {raw_choices[2]}, {raw_choices[3]}")
         choices: List[BattleChoice] = []
         for i in range(num_choices):
             choices.append(BattleChoice(raw_choices[i]))
-        print(f"choices: {choices}")
         return choices
