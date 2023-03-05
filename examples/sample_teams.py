@@ -1,6 +1,8 @@
 """Test script."""
 from pykmn.engine.gen1 import moves, Pokemon, Battle, Side, Player, BattleChoice
 from pykmn.engine.common import ResultType
+from pykmn.engine.protocol import binary_to_human
+
 import random
 
 # https://pokepast.es/cc9b111c9f81f6a4
@@ -40,17 +42,21 @@ def run_battle(log=False) -> int:
         p2_choice = random.choice(battle.possible_choices(Player.P2, result.p2_choice_type()))
         if log:
             print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
-        (result, _) = battle.update(p1_choice, p2_choice)
+        (result, trace) = battle.update(p1_choice, p2_choice)
+        if log:
+            print(binary_to_human(trace))
         if result.type() != ResultType.NONE:
             if log:
                 print(f"RESULT: {result}")
             return turn
 
 
-turns_taken = []
-for i in range(1000):
-    turns_taken.append(run_battle())
+# turns_taken = []
+# for i in range(1000):
+#     turns_taken.append(run_battle())
 
-n = len(turns_taken)
-avg = round(sum(turns_taken) / n)
-print(f"played {n} battles — average turns taken: {avg}")
+# n = len(turns_taken)
+# avg = round(sum(turns_taken) / n)
+# print(f"played {n} battles — average turns taken: {avg}")
+
+run_battle(log=True)
