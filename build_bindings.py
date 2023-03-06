@@ -275,7 +275,7 @@ build_pkmn_engine()
 # Copy data json in
 data_folder = os.path.join(os.getcwd(), "engine", "src", "data")
 
-for json_file in ["data.json", "protocol.json"]:
+for json_file in ["data.json", "protocol.json", "layout.json"]:
     shutil.copyfile(
         os.path.join(data_folder, json_file),
         os.path.join(os.getcwd(), "pykmn", "data", json_file)

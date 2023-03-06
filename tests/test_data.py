@@ -2,6 +2,7 @@
 
 import unittest
 from pykmn import data
+from pykmn.data.gen1 import LAYOUT_SIZES, LAYOUT_OFFSETS
 
 
 class TestGen1Data(unittest.TestCase):
@@ -60,6 +61,25 @@ class TestGen2Data(unittest.TestCase):
     def test_items(self):
         """Gen II has 251 items."""
         self.assertEqual(len(data.gen2.ITEMS), 195)
+
+class TestLayoutData(unittest.TestCase):
+    def test_layout_sizes(self):
+        """Gen I layout sizes."""
+        self.assertLess(LAYOUT_SIZES['Side'] * 2, LAYOUT_SIZES['Battle'])
+        self.assertGreater(
+            LAYOUT_SIZES['Side'],
+            LAYOUT_SIZES['Pokemon'] * 6 + LAYOUT_SIZES['ActivePokemon']
+        )
+
+    def test_layout_offsets(self):
+        self.assertEqual(
+            LAYOUT_OFFSETS['Side']['active'] - LAYOUT_OFFSETS['Side']['pokemon'],
+            LAYOUT_SIZES['Pokemon'] * 6
+        )
+        self.assertEqual(
+            LAYOUT_OFFSETS['Side']['order'] - LAYOUT_OFFSETS['Side']['active'],
+            LAYOUT_SIZES['ActivePokemon']
+        )
 
 
 if __name__ == '__main__':

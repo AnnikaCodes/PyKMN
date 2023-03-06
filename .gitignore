@@ -11,6 +11,7 @@ zig-out
 _pkmn_engine_bindings.*
 /pykmn/data/data.json
 /pykmn/data/protocol.json
+/pykmn/data/layout.json
 # C extensions
 *.so
 

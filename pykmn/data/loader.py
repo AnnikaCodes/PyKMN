@@ -11,6 +11,9 @@ data_json = json.load(open(data_json_path))
 protocol_json_path = os.path.join(our_directory, "protocol.json")
 protocol_json = json.load(open(protocol_json_path))
 
+layout_json_path = os.path.join(our_directory, "layout.json")
+layout_json = json.load(open(layout_json_path))
+
 Gen1StatData = TypedDict(
     'Gen1StatData',
     {'hp': int, 'atk': int, 'def': int, 'spe': int, 'spc': int},
@@ -25,6 +28,98 @@ Gen2SpeciesData = TypedDict(
     'Gen2SpeciesData',
     {'stats': Gen2StatData, 'types': List[str], 'gender': int},
 )
+
+SizeData = TypedDict('SizeData', {'Battle': int, 'Side': int, 'ActivePokemon': int, 'Pokemon': int})
+BattleOffsets = TypedDict('BattleOffsets', {
+    'sides': int,
+    'turn': int,
+    'last_damage': int,
+    'last_selected_indexes': int,
+    'rng': int,
+})
+
+SideOffsets = TypedDict('SideOffsets', {
+    'pokemon': int,
+    'active': int,
+    'order': int,
+    'last_selected_move': int,
+    'last_used_move': int,
+})
+
+PokemonOffsets = TypedDict('PokemonOffsets', {
+    'stats': int,
+    'moves': int,
+    'hp': int,
+    'status': int,
+    'species': int,
+    'types': int,
+    'level': int,
+})
+
+ActivePokemonOffsets = TypedDict('ActivePokemonOffsets', {
+    'stats': int,
+    'species': int,
+    'types': int,
+    'boosts': int,
+    'volatiles': int,
+    'moves': int,
+})
+
+StatsOffsets = TypedDict('StatsOffsets', {
+    'hp': int,
+    'atk': int,
+    'def': int,
+    'spe': int,
+    'spc': int,
+})
+
+BoostsOffsets = TypedDict('BoostsOffsets', {
+    'atk': int,
+    'def': int,
+    'spe': int,
+    'spc': int,
+    'accuracy': int,
+    'evasion': int,
+})
+
+VolatilesOffsets = TypedDict('VolatilesOffsets', {
+    'Bide': int,
+    'Thrashing': int,
+    'MultiHit': int,
+    'Flinch': int,
+    'Charging': int,
+    'Binding': int,
+    'Invulnerable': int,
+    'Confusion': int,
+    'Mist': int,
+    'FocusEnergy': int,
+    'Substitute': int,
+    'Recharging': int,
+    'Rage': int,
+    'LeechSeed': int,
+    'Toxic': int,
+    'LightScreen': int,
+    'Reflect': int,
+    'Transform': int,
+    'confusion': int,
+    'attacks': int,
+    'state': int,
+    'substitute': int,
+    'transform': int,
+    'disabled_duration': int,
+    'disabled_move': int,
+    'toxic': int,
+})
+
+OffsetData = TypedDict('OffsetData', {
+    'Battle': BattleOffsets,
+    'Side': SideOffsets,
+    'Pokemon': PokemonOffsets,
+    'ActivePokemon': ActivePokemonOffsets,
+    'Stats': StatsOffsets,
+    'Boosts': BoostsOffsets,
+    'Volatiles': VolatilesOffsets,
+})
 
 """A list of Pokémon type names."""
 GEN1_TYPES: List[str] = data_json[0]["types"]
@@ -91,3 +186,6 @@ A dictionary whose keys are protocol message names,
 and values are lists of possible values for Reason.
 """
 PROTOCOL_REASONS: Dict[str, List[str]] = protocol_json
+
+GEN1_LAYOUT_SIZES: SizeData = layout_json[0]["sizes"]
+GEN1_LAYOUT_OFFSETS: OffsetData = layout_json[0]["offsets"]
