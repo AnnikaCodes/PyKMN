@@ -5,7 +5,6 @@ from pykmn.data.gen1 import LIBPKMN_SPECIES_IDS, LIBPKMN_MOVE_IDS, TYPES
 from pykmn.data.protocol import MESSAGES, REASONS
 from typing import List
 
-# TODO: unit tests for LastMiss etc
 # TODO: replace hardcoded Reasons
 
 
@@ -15,6 +14,42 @@ class TestProtocolParsing(unittest.TestCase):
     def case(self, protocol: List[int], expected: List[str]):
         """Assert that the protocol parses to the expected message."""
         self.assertListEqual(parse_protocol(protocol), expected)
+
+    @unittest.skip("Not implemented")
+    def test_laststill(self):
+        """Should parse a LastStill byte."""
+        self.case(
+            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastStill')],
+            ["|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1|[still]"]
+        )
+        self.case(
+            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastStill')] +
+            [MESSAGES.index('Faint'), 13] +
+            [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('Rage'), 7],
+            [
+                "|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1|[still]",
+                "|faint|p2a: Pokémon #5",
+                "|-boost|p1a: Pokémon #3|atk|1|[from] Rage",
+            ]
+        )
+
+    @unittest.skip("Not implemented")
+    def test_lastmiss(self):
+        """Should parse a LastMiss byte."""
+        self.case(
+            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastMiss')],
+            ["|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1|[miss]"]
+        )
+        self.case(
+            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastMiss')] +
+            [MESSAGES.index('Faint'), 13] +
+            [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('Rage'), 7],
+            [
+                "|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1|[miss]",
+                "|faint|p2a: Pokémon #5",
+                "|-boost|p1a: Pokémon #3|atk|1|[from] Rage",
+            ]
+        )
 
     def test_move(self):
         """Should parse a |move| message."""
