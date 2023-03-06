@@ -142,12 +142,12 @@ class TestProtocolParsing(unittest.TestCase):
         # Poison case
         self.case(
             [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 8, REASONS['Damage'].index('Poison')],
-            ["|-damage|p2a: Pokémon #1|0/762|psn"],
+            ["|-damage|p2a: Pokémon #1|0/762 psn|[from] psn"],
         )
         # Burn case
         self.case(
             [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 16, REASONS['Damage'].index('Burn')],
-            ["|-damage|p2a: Pokémon #1|0/762 brn|brn"],
+            ["|-damage|p2a: Pokémon #1|0/762 brn|[from] brn"],
         )
         self.case(
             [

@@ -77,7 +77,6 @@ def parse_protocol(
     Returns:
         List[str]: An array of PS protocol messages.
     """
-
     bytes_iterator = iter(binary_protocol)
     messages: List[str] = []
     while True:
@@ -168,6 +167,7 @@ def parse_protocol(
             reason = REASONS[msg_type][next(bytes_iterator)]
             if reason == "None":
                 pass
+            # is this actually how things are on PS? or should it be |psn?
             elif reason == "Poison":
                 msg += "|[from] psn"
             elif reason == "Burn":
