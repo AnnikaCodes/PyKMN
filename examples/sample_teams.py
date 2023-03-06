@@ -1,11 +1,13 @@
 """Test script."""
 from pykmn.engine.gen1 import moves, Pokemon, Battle, Side, Player, BattleChoice
 from pykmn.engine.common import ResultType
-from pykmn.engine.protocol import binary_to_human
+from pykmn.engine.protocol import parse_protocol
 
 import random
 
+
 def hexfmt(b):
+    """Format bytes as hex."""
     battle_hex = ""
     n = 0
     for x in b:
@@ -59,7 +61,7 @@ def run_battle(log=False) -> int:
         # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
         if log:
             print("\nTrace: ")
-            for msg in binary_to_human(trace):
+            for msg in parse_protocol(trace):
                 print("* " + msg)
         if result.type() != ResultType.NONE:
             if log:

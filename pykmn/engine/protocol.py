@@ -7,7 +7,7 @@ moveid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_MOVE_IDS.
 speciesid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_SPECIES_IDS.items()}
 
 
-def parse_identifier(ident: int) -> str:
+def parse_identifier(ident: int, slots: List[str]) -> str:
     """Parse a Pokémon identifier.
 
     Args:
@@ -20,8 +20,8 @@ def parse_identifier(ident: int) -> str:
     # 5th most significant bit is the player number
     player = '2' if ((ident >> 3) & 1) == 1 else '1'
     # lowest 3 bits are the slot number
-    slot = str(ident & 0x07)
-    msg = f"p{player}{position}: Pokémon #{slot}"  # TODO: support passing in a slot<->name map
+    slot = ident & 0x07
+    msg = f"p{player}{position}: {slots[slot - 1]}"
     return msg
 
 
@@ -49,29 +49,35 @@ def parse_status(status: int) -> str:
     # code is from @pkmn/engine
     # https://github.com/pkmn/engine/blob/main/src/pkg/protocol.ts#L436-L446
     if status & 0b111:
-        return 'asleep'
+        return 'slp'
     if (status >> 3) & 1:
-        return 'poisoned'
+        return 'psn'
     if (status >> 4) & 1:
-        return 'burned'
+        return 'brn'
     if (status >> 5) & 1:
-        return 'frozen'
+        return 'frz'
     if (status >> 6) & 1:
-        return 'paralyzed'
+        return 'par'
     if (status >> 7) & 1:
-        return 'badly poisoned'
-    return 'healthy'
+        return 'tox'
+    return ''
 
 
-def parse_protocol(binary_protocol: List[int]) -> List[str]:
+def parse_protocol(
+    binary_protocol: List[int],
+    # https://github.com/python/mypy/issues/5068#issuecomment-389882867
+    slots: List[str] = [f"Pokémon #{n}" for n in range(1, 7)]  # type: ignore
+) -> List[str]:
     """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
 
     Args:
         binary_protocol (List[int]): An array of byte-length integers of libpkmn protocol.
+        slots (List[str], optional): An array of Pokémon names in each slot.
 
     Returns:
         List[str]: An array of PS protocol messages.
     """
+    assert len(slots) == 6, "Must pass in 6 Pokémon names."
     bytes_iterator = iter(binary_protocol)
     messages: List[str] = []
     while True:
@@ -86,17 +92,17 @@ def parse_protocol(binary_protocol: List[int]) -> List[str]:
             return messages
 
         elif msg_type == "Move":
-            source = parse_identifier(next(bytes_iterator))
+            source = parse_identifier(next(bytes_iterator), slots)
             move = parse_move(next(bytes_iterator))
-            target = parse_identifier(next(bytes_iterator))
+            target = parse_identifier(next(bytes_iterator), slots)
             msg = f"|move|{source}|{move}|{target}"
             reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
             if reason == "From":
-                msg += f"|from|{parse_move(next(bytes_iterator))})"
+                msg += f"|[from] {parse_move(next(bytes_iterator))}"
             messages.append(msg)
 
         elif msg_type == "Switch" or msg_type == "Drag":
-            pokemon = parse_identifier(next(bytes_iterator))
+            pokemon = parse_identifier(next(bytes_iterator), slots)
             species = speciesid_to_name_map[next(bytes_iterator)]
             level = next(bytes_iterator)
             current_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
@@ -104,71 +110,90 @@ def parse_protocol(binary_protocol: List[int]) -> List[str]:
             status = parse_status(next(bytes_iterator))
 
             messages.append(
-                f"|{msg_type.lower()}|{pokemon}|{species}, L{level}|{current_hp}/{max_hp} {status}"
+                f"|{msg_type.lower()}|{pokemon}|{species}, L{level}|" +
+                f"{current_hp}/{max_hp}{' ' + status if status else ''}"
             )
 
-        elif msg_type == MessageType.CANNOT:
-            pokemon = ident_to_human(next(bytes_iterator))
-            reason = next(bytes_iterator)
-            message = f"{pokemon}"
-            if reason == 0x00:
-                message += " is fast asleep."
-            elif reason == 0x01:
-                message += " is frozen solid."
-            elif reason == 0x02:
-                message += " is fully paralyzed."
-            elif reason == 0x03:
-                message += " is trapped."
-            elif reason == 0x04:
-                message += " flinched and couldn't move."
-            elif reason == 0x05:
-                move = move_to_human(next(bytes_iterator))
-                message += f"'s move {move} is disabled."
-            elif reason == 0x06:
-                message += " must recharge."
-            elif reason == 0x07:
-                message += "'s move is out of PP."
+        elif msg_type == "Cant":
+            pokemon = parse_identifier(next(bytes_iterator), slots)
+            reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
+            message = f"|cant|{pokemon}"
+            if reason == "Sleep":
+                message += "|slp"
+            elif reason == "Freeze":
+                message += "|frz"
+            elif reason == "Paralysis":
+                message += "|par"
+            elif reason == "Bound":
+                message += "|partiallytrapped"
+            elif reason == "Flinch":
+                message += "|flinch"
+            elif reason == "Disable":
+                move = parse_move(next(bytes_iterator))
+                message += f"|Disable|{move}"
+            elif reason == "Recharge":
+                message += "|recharge"
+            elif reason == "PP":
+                message += "|nopp"
             else:
-                message += f" couldn't move due to reason code 0x{reason:0>2X}"
+                message += f"|{reason}"
             messages.append(message)
 
-        elif msg_type == MessageType.FAINT:
-            target = ident_to_human(next(bytes_iterator))
-            messages.append(f"{target} fainted.")
+        elif msg_type == "Faint":
+            target = parse_identifier(next(bytes_iterator), slots)
+            messages.append(f"|faint|{target}")
 
-        elif msg_type == MessageType.TURN:
+        elif msg_type == "Turn":
             turn = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            messages.append(f"It is now turn {turn}.")
+            messages.append(f"|turn|{turn}")
 
-        elif msg_type == MessageType.WIN:
+        elif msg_type == "Win":
             player = next(bytes_iterator)
-            messages.append(f"Player {player + 1} won the battle!")
+            messages.append(f"|win|p{player + 1}")
 
-        elif msg_type == MessageType.TIE:
-            messages.append("The battle ended in a tie!")
+        elif msg_type == "Tie":
+            messages.append("|tie")
 
-        elif msg_type == MessageType.DAMAGE:
-            target = ident_to_human(next(bytes_iterator))
+        elif msg_type == "Damage" or msg_type == "Heal":
+            target = parse_identifier(next(bytes_iterator), slots)
 
             # hp is a 16-bit uint
             current_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
             max_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            status = status_to_human(next(bytes_iterator))
-
-            if next(bytes_iterator) == 0x04:
-                source = f" from {ident_to_human(next(bytes_iterator))}"
-            else:
-                source = ""
-            messages.append(
-                f"Damage dealt to {target}{source}, which now has {current_hp} HP" +
-                f" out of {max_hp} HP and is {status}."
+            status = parse_status(next(bytes_iterator))
+            msg = (
+                f"|-{msg_type.lower()}|{target}|{current_hp}/{max_hp}" +
+                f"{' ' + status if status else ''}"
             )
+            reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
+            if reason == "None":
+                pass
+            elif reason == "Poison":
+                msg += "|[from] psn"
+            elif reason == "Burn":
+                msg += "|[from] brn"
+            elif reason == "Confusion":
+                msg += "|[from] confusion"
+            elif reason == "LeechSeed":
+                msg += "|[from] leechseed"
+            elif reason == "RecoilOf":
+                recoil_of = parse_identifier(next(bytes_iterator), slots)
+                msg += f"|[from] recoil|[of] {recoil_of}"
+            elif reason == "Silent":
+                msg += "|[silent]"
+            elif reason == "Drain":
+                drain_of = parse_identifier(next(bytes_iterator), slots)
+                msg += f"|[from] drain|[of] {drain_of}"
+            else:
+                msg += f"|[from] {reason}"
+
+            messages.append(msg)
             # TODO: handle Reason
             # TODO: add tests
 
-        elif msg_type == MessageType.SUPEREFFECTIVE:
-            target = ident_to_human(next(bytes_iterator))
-            messages.append(f"Super-effective hit on {target}!")
+        elif msg_type == "SuperEffective":
+            target = parse_identifier(next(bytes_iterator), slots)
+            messages.append(f"|-supereffective|{target}")
         else:
             messages.append("Unknown message type encountered: {}".format(msg_type))
             return messages

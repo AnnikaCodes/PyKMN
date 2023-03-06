@@ -1,6 +1,7 @@
 include build_bindings.py
 include engine/*
 include pykmn/data/data.json
+include pykmn/data/protocol.json
 recursive-include engine/src *
 
 recursive-exclude engine/zig-out *
