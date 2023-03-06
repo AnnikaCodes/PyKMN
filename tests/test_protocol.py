@@ -1,7 +1,7 @@
 """Tests for protocol parsing."""
 import unittest
 from pykmn.engine.protocol import parse_protocol
-from pykmn.data.gen1 import LIBPKMN_SPECIES_IDS, LIBPKMN_MOVE_IDS, TYPES
+from pykmn.data.gen1 import SPECIES_IDS, MOVE_IDS, TYPES
 from pykmn.data.protocol import MESSAGES, REASONS
 from typing import List
 
@@ -19,11 +19,13 @@ class TestProtocolParsing(unittest.TestCase):
     def test_laststill(self):
         """Should parse a LastStill byte."""
         self.case(
-            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastStill')],
+            [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')] +
+            [MESSAGES.index('LastStill')],
             ["|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1|[still]"]
         )
         self.case(
-            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastStill')] +
+            [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')] +
+            [MESSAGES.index('LastStill')] +
             [MESSAGES.index('Faint'), 13] +
             [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('Rage'), 7],
             [
@@ -37,11 +39,13 @@ class TestProtocolParsing(unittest.TestCase):
     def test_lastmiss(self):
         """Should parse a LastMiss byte."""
         self.case(
-            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastMiss')],
+            [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')] +
+            [MESSAGES.index('LastMiss')],
             ["|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1|[miss]"]
         )
         self.case(
-            [MESSAGES.index('Move'), 1, 94, 9, 0, MESSAGES.index('LastMiss')] +
+            [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')] +
+            [MESSAGES.index('LastMiss')] +
             [MESSAGES.index('Faint'), 13] +
             [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('Rage'), 7],
             [
@@ -54,28 +58,62 @@ class TestProtocolParsing(unittest.TestCase):
     def test_move(self):
         """Should parse a |move| message."""
         self.case(
-            [MESSAGES.index('Move'), 1, 94, 9, 0],
+            [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')],
             ["|move|p1a: Pokémon #1|Psychic|p2a: Pokémon #1"],
         )
         self.case(
-            [MESSAGES.index('Move'), 3, 126, 9, 1, 118],
+            [MESSAGES.index('Move'), 3, 126, 9, REASONS['Move'].index('From'), 118],
             ["|move|p1a: Pokémon #3|Fire Blast|p2a: Pokémon #1|[from] Metronome"],
         )
 
     def test_switch(self):
         """Should parse a |switch| message."""
         self.case([
-            MESSAGES.index('Switch'), 3, LIBPKMN_SPECIES_IDS['Charizard'], 73,
+            MESSAGES.index('Switch'), 3, SPECIES_IDS['Charizard'], 73,
             189 & 0xFF, 189 >> 8, 314 & 0xFF, 314 >> 8, 128
         ], ["|switch|p1a: Pokémon #3|Charizard, L73|189/314 tox"])
 
     def test_cant(self):
         """Should parse a |cant| message."""
-        self.case([MESSAGES.index('Cant'), 9, 7], ["|cant|p2a: Pokémon #1|nopp"])
+        # Sleep case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Sleep')],
+            ["|cant|p2a: Pokémon #1|slp"],
+        )
+        # Freeze case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Freeze')],
+            ["|cant|p2a: Pokémon #1|frz"],
+        )
+        # Paralysis case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Paralysis')],
+            ["|cant|p2a: Pokémon #1|par"],
+        )
+        # partially trapped case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Bound')],
+            ["|cant|p2a: Pokémon #1|partiallytrapped"],
+        )
+        # flinch case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Flinch')],
+            ["|cant|p2a: Pokémon #1|flinch"],
+        )
         # Disable case
         self.case(
-            [MESSAGES.index('Cant'), 9, 5, LIBPKMN_MOVE_IDS['Acid Armor']],
-            ["|cant|p2a: Pokémon #1|Disable|Acid Armor"]
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Disable'), MOVE_IDS['Acid Armor']],
+            ["|cant|p2a: Pokémon #1|Disable|Acid Armor"],
+        )
+        # Recharge case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('Recharge')],
+            ["|cant|p2a: Pokémon #1|recharge"],
+        )
+        # PP case
+        self.case(
+            [MESSAGES.index('Cant'), 9, REASONS['Cant'].index('PP')],
+            ["|cant|p2a: Pokémon #1|nopp"],
         )
 
     def test_faint(self):
@@ -98,16 +136,32 @@ class TestProtocolParsing(unittest.TestCase):
     def test_damage(self):
         """Should parse a |-damage| message."""
         self.case(
-            [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 0, 0],
+            [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 0, REASONS['Damage'].index('None')],
             ["|-damage|p2a: Pokémon #1|0/762"],
         )
+        # Poison case
         self.case(
-            [MESSAGES.index('Damage'), 4, 63 & 0xFF, 63 >> 8, 250, 2, 16, 3],
+            [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 8, REASONS['Damage'].index('Poison')],
+            ["|-damage|p2a: Pokémon #1|0/762|psn"],
+        )
+        # Burn case
+        self.case(
+            [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 16, REASONS['Damage'].index('Burn')],
+            ["|-damage|p2a: Pokémon #1|0/762 brn|brn"],
+        )
+        self.case(
+            [
+                MESSAGES.index('Damage'), 4, 63 & 0xFF, 63 >> 8, 250, 2, 16,
+                REASONS['Damage'].index('Confusion'),
+            ],
             ["|-damage|p1a: Pokémon #4|63/762 brn|[from] confusion"],
         )
         # Recoil case
         self.case(
-            [MESSAGES.index('Damage'), 4, 382 & 0xFF, 382 >> 8, 30, 2, 64, 5, 10],
+            [
+                MESSAGES.index('Damage'), 4, 382 & 0xFF, 382 >> 8, 30, 2, 64,
+                REASONS['Damage'].index('RecoilOf'), 10,
+            ],
             ["|-damage|p1a: Pokémon #4|382/542 par|[from] recoil|[of] p2a: Pokémon #2"],
         )
 
@@ -115,44 +169,45 @@ class TestProtocolParsing(unittest.TestCase):
         """Should parse a |-heal| message."""
         # base case
         self.case(
-            [MESSAGES.index('Heal'), 9, 91, 0, 30, 1, 8, 0],
+            [MESSAGES.index('Heal'), 9, 91, 0, 30, 1, 8, REASONS['Heal'].index('None')],
             ["|-heal|p2a: Pokémon #1|91/286 psn"]
         )
         # silent case
         self.case(
-            [MESSAGES.index('Heal'), 9, 91, 0, 30, 1, 4, 1],
+            [MESSAGES.index('Heal'), 9, 91, 0, 30, 1, 4, REASONS['Heal'].index('Silent')],
             ["|-heal|p2a: Pokémon #1|91/286 slp|[silent]"],
         )
         # from drain case
         self.case(
-            [MESSAGES.index('Heal'), 2, 91, 0, 30, 1, 16, 2, 12],
+            [MESSAGES.index('Heal'), 2, 91, 0, 30, 1, 16, REASONS['Heal'].index('Drain'), 12],
             ["|-heal|p1a: Pokémon #2|91/286 brn|[from] drain|[of] p2a: Pokémon #4"],
         )
 
     @unittest.skip("Not yet implemented.")
     def test_status(self):
         """Should parse a |-status| message."""
-        self.case([MESSAGES.index('Status'), 9, 4, 0], ["|-status|p2a: Pokémon #1|slp"])
-        self.case([MESSAGES.index('Status'), 9, 8, 0], ["|-status|p2a: Pokémon #1|psn"])
-        self.case([MESSAGES.index('Status'), 9, 16, 1], ["|-status|p2a: Pokémon #1|brn|silent"])
-        self.case([MESSAGES.index('Status'), 9, 32, 0], ["|-status|p2a: Pokémon #1|frz"])
-        self.case([MESSAGES.index('Status'), 9, 64, 1], ["|-status|p2a: Pokémon #1|par|silent"])
+        none = REASONS['Heal'].index('None')
+        slnt = REASONS['Heal'].index('Silent')
+
+        self.case([MESSAGES.index('Status'), 9, 4, none], ["|-status|p2a: Pokémon #1|slp"])
+        self.case([MESSAGES.index('Status'), 9, 8, none], ["|-status|p2a: Pokémon #1|psn"])
+        self.case([MESSAGES.index('Status'), 9, 16, slnt], ["|-status|p2a: Pokémon #1|brn|silent"])
+        self.case([MESSAGES.index('Status'), 9, 32, none], ["|-status|p2a: Pokémon #1|frz"])
+        self.case([MESSAGES.index('Status'), 9, 64, slnt], ["|-status|p2a: Pokémon #1|par|silent"])
         self.case(
-            [MESSAGES.index('Status'), 9, 128, 2, LIBPKMN_MOVE_IDS['Toxic']],
+            [MESSAGES.index('Status'), 9, 128, REASONS['Heal'].index('From'), MOVE_IDS['Toxic']],
             ["|-status|p2a: Pokémon #1|tox|[from] Toxic"],
         )
 
     @unittest.skip("Not yet implemented.")
     def test_curestatus(self):
         """Should parse a |-curestatus| message."""
-        self.case([MESSAGES.index('CureStatus'), 10, 4, 0], ["|-curestatus|p2a: Pokémon #2|slp"])
-        self.case([MESSAGES.index('CureStatus'), 11, 8, 0], ["|-curestatus|p2a: Pokémon #3|psn"])
         self.case(
-            [MESSAGES.index('CureStatus'), 6, 16, 1],
+            [MESSAGES.index('CureStatus'), 6, 16, REASONS['CureStatus'].index('Message')],
             ["|-curestatus|p1a: Pokémon #6|brn|[msg]"],
         )
         self.case(
-            [MESSAGES.index('CureStatus'), 5, 32, 2],
+            [MESSAGES.index('CureStatus'), 5, 32, REASONS['CureStatus'].index('Silent')],
             ["|-curestatus|p1a: Pokémon #5|frz|[silent]"],
         )
 
@@ -257,7 +312,7 @@ class TestProtocolParsing(unittest.TestCase):
     def test_prepare(self):
         """Should parse a |-prepare| message."""
         self.case(
-            [MESSAGES.index('Prepare'), 5, LIBPKMN_MOVE_IDS['Solar Beam']],
+            [MESSAGES.index('Prepare'), 5, MOVE_IDS['Solar Beam']],
             ["|-prepare|p1a: Pokémon #5|Solar Beam"]
         )
 
@@ -349,12 +404,12 @@ class TestProtocolParsing(unittest.TestCase):
         self.case(
             [
                 MESSAGES.index('Start'), 4, REASONS['Start'].index('Disable'),
-                LIBPKMN_MOVE_IDS['Splash']
+                MOVE_IDS['Splash']
             ],
             ["|-start|p1a: Pokémon #4|Disable|move: Splash"],
         )
         self.case(
-            [MESSAGES.index('Start'), 4, REASONS['Start'].index('Mimic'), LIBPKMN_MOVE_IDS['Surf']],
+            [MESSAGES.index('Start'), 4, REASONS['Start'].index('Mimic'), MOVE_IDS['Surf']],
             ["|-start|p1a: Pokémon #4|Mimic|move: Surf"],
         )
 

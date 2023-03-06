@@ -2,7 +2,7 @@
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, BattleChoiceType, Softlock, BattleChoice
 from pykmn.engine.rng import ShowdownRNG
-from pykmn.data.gen1 import Gen1StatData, LIBPKMN_MOVE_IDS, LIBPKMN_SPECIES_IDS, \
+from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
     SPECIES, TYPES, MOVES
 
 from typing import List, Tuple
@@ -83,10 +83,10 @@ class Move:
 
     def __init__(self, name: str):
         """Create a new Move object."""
-        if name not in LIBPKMN_MOVE_IDS:
+        if name not in MOVE_IDS:
             raise ValueError(f"'{name}' is not a valid move in Generation I.")
         self.name = name
-        self.id = LIBPKMN_MOVE_IDS[name]
+        self.id = MOVE_IDS[name]
 
     def _to_bits(self) -> Bits:
         """Pack the move into a bitstring."""
@@ -198,7 +198,7 @@ class Pokemon:
             [stats] + [move._to_slot_bits() for move in self.moves] + [
                 Bits(uintne=self.hp, length=16),
                 Bits(uintne=self.status.to_int(), length=8),
-                Bits(uintne=LIBPKMN_SPECIES_IDS[self.name], length=8),
+                Bits(uintne=SPECIES_IDS[self.name], length=8),
                 Bits(uint=first_type, length=4),
                 Bits(uint=second_type, length=4),
                 Bits(uintne=self.level, length=8),

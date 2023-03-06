@@ -30,7 +30,7 @@ class TestGen1Data(unittest.TestCase):
 
     def test_libpkmn_ids(self):
         """Gen I libpkmn move IDs."""
-        self.assertEqual(data.gen1.LIBPKMN_MOVE_IDS['Karate Chop'], 2)
+        self.assertEqual(data.gen1.MOVE_IDS['Karate Chop'], 2)
 
 
 class TestGen2Data(unittest.TestCase):

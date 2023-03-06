@@ -1,10 +1,10 @@
 """Code to handle libpkmn binary protocol."""
 from typing import List, Dict, Tuple
-from pykmn.data.gen1 import LIBPKMN_MOVE_IDS, LIBPKMN_SPECIES_IDS
+from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS
 from pykmn.data.protocol import MESSAGES, REASONS
 
-moveid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_MOVE_IDS.items()}
-speciesid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_SPECIES_IDS.items()}
+moveid_to_name_map: Dict[int, str] = {id: name for name, id in MOVE_IDS.items()}
+speciesid_to_name_map: Dict[int, str] = {id: name for name, id in SPECIES_IDS.items()}
 
 
 def parse_identifier(ident: int, slots: Tuple[List[str], List[str]]) -> str:
