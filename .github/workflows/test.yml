@@ -28,7 +28,7 @@ jobs:
         python-version: '3.x'
 
     - name: Install dependencies
-      run: python3 -m pip install flake8 mypy flake8-docstrings build
+      run: python3 -m pip install ruff mypy build
         coverage cffi requests
         types-cffi types-requests types-setuptools
 
@@ -37,7 +37,7 @@ jobs:
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
 
     - name: Lint
-      run: flake8 .
+      run: ruff check .
 
     - name: Check types
       run: mypy .
