@@ -90,4 +90,4 @@ del protocol_json["ArgType"]
 A dictionary whose keys are protocol message names,
 and values are lists of possible values for Reason.
 """
-PROTOCOL_REASON_LOOKUP: Dict[str, List[str]] = protocol_json
+PROTOCOL_REASONS: Dict[str, List[str]] = protocol_json

@@ -1,13 +1,13 @@
 """Code to handle libpkmn binary protocol."""
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from pykmn.data.gen1 import LIBPKMN_MOVE_IDS, LIBPKMN_SPECIES_IDS
-from pykmn.data.protocol import MESSAGES, REASON_LOOKUP
+from pykmn.data.protocol import MESSAGES, REASONS
 
 moveid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_MOVE_IDS.items()}
 speciesid_to_name_map: Dict[int, str] = {id: name for name, id in LIBPKMN_SPECIES_IDS.items()}
 
 
-def parse_identifier(ident: int, slots: List[str]) -> str:
+def parse_identifier(ident: int, slots: Tuple[List[str], List[str]]) -> str:
     """Parse a Pokémon identifier.
 
     Args:
@@ -18,10 +18,10 @@ def parse_identifier(ident: int, slots: List[str]) -> str:
     """
     position = 'b' if ((ident >> 4) & 1) == 1 else 'a'
     # 5th most significant bit is the player number
-    player = '2' if ((ident >> 3) & 1) == 1 else '1'
+    player = (ident >> 3) & 1
     # lowest 3 bits are the slot number
     slot = ident & 0x07
-    msg = f"p{player}{position}: {slots[slot - 1]}"
+    msg = f"p{player + 1}{position}: {slots[player][slot - 1]}"
     return msg
 
 
@@ -66,18 +66,18 @@ def parse_status(status: int) -> str:
 def parse_protocol(
     binary_protocol: List[int],
     # https://github.com/python/mypy/issues/5068#issuecomment-389882867
-    slots: List[str] = [f"Pokémon #{n}" for n in range(1, 7)]  # type: ignore
+    slots: Tuple[List[str], List[str]] = ([f"Pokémon #{n}" for n in range(1, 7)],)*2  # type: ignore
 ) -> List[str]:
     """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
 
     Args:
         binary_protocol (List[int]): An array of byte-length integers of libpkmn protocol.
-        slots (List[str], optional): An array of Pokémon names in each slot.
+        slots (Tuple[List[str], List[str]]): A list of Pokémon names in each slot for sides 1 and 2
 
     Returns:
         List[str]: An array of PS protocol messages.
     """
-    assert len(slots) == 6, "Must pass in 6 Pokémon names."
+
     bytes_iterator = iter(binary_protocol)
     messages: List[str] = []
     while True:
@@ -96,7 +96,7 @@ def parse_protocol(
             move = parse_move(next(bytes_iterator))
             target = parse_identifier(next(bytes_iterator), slots)
             msg = f"|move|{source}|{move}|{target}"
-            reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
+            reason = REASONS[msg_type][next(bytes_iterator)]
             if reason == "From":
                 msg += f"|[from] {parse_move(next(bytes_iterator))}"
             messages.append(msg)
@@ -116,7 +116,7 @@ def parse_protocol(
 
         elif msg_type == "Cant":
             pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
+            reason = REASONS[msg_type][next(bytes_iterator)]
             message = f"|cant|{pokemon}"
             if reason == "Sleep":
                 message += "|slp"
@@ -165,7 +165,7 @@ def parse_protocol(
                 f"|-{msg_type.lower()}|{target}|{current_hp}/{max_hp}" +
                 f"{' ' + status if status else ''}"
             )
-            reason = REASON_LOOKUP[msg_type][next(bytes_iterator)]
+            reason = REASONS[msg_type][next(bytes_iterator)]
             if reason == "None":
                 pass
             elif reason == "Poison":
