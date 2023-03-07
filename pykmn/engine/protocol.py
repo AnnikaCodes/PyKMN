@@ -1,13 +1,68 @@
 """Code to handle libpkmn binary protocol."""
 from typing import List, Dict, Tuple
 from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS, TYPES
-from pykmn.data.protocol import MESSAGES, REASONS
+from pykmn.engine.common import unpack_u16_from_bytes
+
+Slots = Tuple[List[str], List[str]]
 
 moveid_to_name_map: Dict[int, str] = {id: name for name, id in MOVE_IDS.items()}
 speciesid_to_name_map: Dict[int, str] = {id: name for name, id in SPECIES_IDS.items()}
 
+MOVE_REASONS = ['', '|[from] ']
+MOVE_ADDMOVE_REASON = MOVE_REASONS.index('|[from] ')
 
-def parse_identifier(ident: int, slots: Tuple[List[str], List[str]]) -> str:
+# We could make this use the indices from the protocol JSON, but it's a performance penalty:
+# doing so runs at around 21 μs per cant, while this runs at around 16 μs.
+CANT_REASONS = [
+    '|slp', '|frz', '|par', '|partiallytrapped', '|flinch',
+    '|Disable|', '|recharge', '|nopp',
+]
+CANT_ADDMOVE_REASON = CANT_REASONS.index('|Disable|')
+
+DAMAGE_REASONS = [
+    '', '|[from] psn', '|[from] brn', '|[from] confusion', '|[from] leechseed',
+    '|[from] recoil|[of] ',
+]
+DAMAGE_ADDPKMN_REASON = DAMAGE_REASONS.index('|[from] recoil|[of] ')
+
+HEAL_REASONS = ['', '|[silent]', '|[from] drain|[of] ']
+HEAL_ADDPKMN_REASON = HEAL_REASONS.index('|[from] drain|[of] ')
+
+STATUS_REASONS = ['', '|[silent]', '|[from] ']
+STATUS_ADDMOVE_REASON = STATUS_REASONS.index('|[from] ')
+
+CURESTATUS_REASONS = ['|[msg]', '|[silent]']
+
+FAIL_REASONS = [
+    '', '|slp', '|psn', '|brn', '|frz', '|par', '|tox',
+    '|move: Substitute', '|move: Substitute|[weak]',
+]
+
+ACTIVATE_REASONS = [
+    '|Bide', '|confusion', '|move: Haze', '|move: Mist',
+    '|move: Struggle', '|Substitute|[damage]', '||move: Splash',
+]
+
+BOOST_REASONS = [
+    '|atk|[from] Rage', '|atk', '|def', '|spe', '|spa', '|spd', '|accuracy', '|evasion',
+]
+
+START_REASONS = [
+    '|Bide', '|confusion', '|confusion|[silent]', '|move: Focus Energy', '|move: Leech Seed',
+    '|Light Screen', '|Mist', '|Reflect', '|Substitute', '', # Typechange handled elsewhere
+    '|Disable|move: ', '|Mimic|move: ',
+]
+START_TYPECHANGE_REASON = START_REASONS.index('')
+START_ADDMOVE_MIN_REASON = START_REASONS.index('|Disable|move: ')
+
+END_REASONS = [
+    '|Disable', '|confusion', '|move: Bide', '|Substitute', '|Disable|[silent]',
+    '|confusion|[silent]', '|mist|[silent]', '|focusenergy|[silent]', '|leechseed|[silent]',
+    '|Toxic counter|[silent]', '|lightscreen|[silent]', '|reflect|[silent]',
+]
+IMMUNE_REASONS = ['', '|[ohko]']
+
+def parse_identifier(ident: int, slots: Slots) -> str:
     """Parse a Pokémon identifier.
 
     Args:
@@ -62,347 +117,265 @@ def parse_status(status: int) -> str:
         return 'tox'
     return ''
 
+def lastx_parser(kind: str):
+    def parser(_bp, _i, _slots, messages: List[str]):
+        to_append = f"|[{kind.lower()}]"
+        idx = len(messages) - 1
+        while idx >= 0:
+            if messages[idx].startswith("|move|"):
+                messages[idx] += to_append
+                break
+            idx -= 1
+        if idx == -1:
+            raise Exception(f"Last{kind} byte without a previous |move| to append to")
+        return None
+    return parser
+
+def move_parser(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    source = parse_identifier(binary_protocol[i], slots)
+    move = parse_move(binary_protocol[i + 1])
+    target = parse_identifier(binary_protocol[i + 2], slots)
+    reason = binary_protocol[i + 3]
+    i += 4
+    msg = f"|move|{source}|{move}|{target}{MOVE_REASONS[reason]}"
+    if reason == MOVE_ADDMOVE_REASON:
+        msg += parse_move(binary_protocol[i])
+        i += 1
+    return (msg, i)
+
+def switch_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    species = speciesid_to_name_map[binary_protocol[i + 1]]
+    level = binary_protocol[i + 2]
+    current_hp = binary_protocol[i + 3] + (binary_protocol[i + 4] << 8)
+    max_hp = binary_protocol[i + 5] + (binary_protocol[i + 6] << 8)
+    status = parse_status(binary_protocol[i + 7])
+    i += 8
+    return ((
+        f"|switch|{pokemon}|{species}, L{level}|" +
+        f"{current_hp}/{max_hp}{' ' + status if status else ''}"
+    ), i)
+
+def cant_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    reason = binary_protocol[i + 1]
+    i += 2
+    message = f"|cant|{pokemon}"
+    message += CANT_REASONS[reason]
+    if reason == CANT_ADDMOVE_REASON:
+        message += parse_move(binary_protocol[i])
+        i += 1
+
+    return (message, i)
+
+def turn_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    turn = unpack_u16_from_bytes(binary_protocol[i], binary_protocol[i + 1])
+    return (f"|turn|{turn}", i + 2)
+
+def win_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    winner = binary_protocol[i]
+    i += 1
+    return (f"|win|p{winner + 1}", i)
+
+def tie_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    return ("|tie", i)
+
+def damage_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    target = parse_identifier(binary_protocol[i], slots)
+
+    # hp is a 16-bit uint
+    current_hp = binary_protocol[i + 1] + (binary_protocol[i + 2] << 8)
+    max_hp = binary_protocol[i + 3] + (binary_protocol[i + 4] << 8)
+    status = parse_status(binary_protocol[i + 5])
+    msg = (
+        f"|-damage|{target}|{current_hp}/{max_hp}" +
+        f"{' ' + status if status else ''}"
+    )
+    reason = binary_protocol[i + 6]
+    i += 7
+    msg += DAMAGE_REASONS[reason]
+    if reason == DAMAGE_ADDPKMN_REASON:
+        msg += parse_identifier(binary_protocol[i], slots)
+        i += 1
+    return (msg, i)
+
+def heal_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    target = parse_identifier(binary_protocol[i], slots)
+
+    # hp is a 16-bit uint
+    current_hp = binary_protocol[i + 1] + (binary_protocol[i + 2] << 8)
+    max_hp = binary_protocol[i + 3] + (binary_protocol[i + 4] << 8)
+    status = parse_status(binary_protocol[i + 5])
+    msg = (
+        f"|-heal|{target}|{current_hp}/{max_hp}" +
+        f"{' ' + status if status else ''}"
+    )
+    reason = binary_protocol[i + 6]
+    i += 7
+    msg += HEAL_REASONS[reason]
+    if reason == HEAL_ADDPKMN_REASON:
+        msg += parse_identifier(binary_protocol[i], slots)
+        i += 1
+    return (msg, i)
+
+def status_parser(name: str):
+    reasons = STATUS_REASONS if name == "Status" else CURESTATUS_REASONS
+    def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+        pokemon = parse_identifier(binary_protocol[i], slots)
+        status = parse_status(binary_protocol[i + 1])
+        reason = binary_protocol[i + 2]
+        i += 3
+        msg = f"|-{name.lower()}|{pokemon}|{status}{reasons[reason]}"
+        if name == "Status" and reason == STATUS_ADDMOVE_REASON:
+            msg += parse_move(binary_protocol[i])
+            i += 1
+
+        return (msg, i)
+    return handler
+
+def returner(msg: str):
+    def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+        return (msg, i)
+    return handler
+
+def boost_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    reason = binary_protocol[i + 1]
+    boost_amount = binary_protocol[i + 2] - 6
+    i += 3
+    name = 'boost' if boost_amount > 0 else 'unboost'
+    message = f"|-{name}|{pokemon}{BOOST_REASONS[reason]}|{abs(boost_amount)}"
+    return (message, i)
+
+def fail_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    reason = binary_protocol[i + 1]
+    i += 2
+    return (f"|-fail|{pokemon}{FAIL_REASONS[reason]}", i)
+
+def generic_message_parser(name: str):
+    def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+        pokemon = parse_identifier(binary_protocol[i], slots)
+        i += 1
+        return (f"|{name}|{pokemon}", i)
+    return handler
+
+def hitcount_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    hit_count = binary_protocol[i + 1]
+    i += 2
+    return (f"|-hitcount|{pokemon}|{hit_count}", i)
+
+def prepare_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    move = parse_move(binary_protocol[i + 1])
+    i += 2
+    return (f"|-prepare|{pokemon}|{move}", i)
+
+def activate_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    return (f"|-activate|{pokemon}{ACTIVATE_REASONS[binary_protocol[i + 1]]}", i + 2)
+
+def start_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    reason = binary_protocol[i + 1]
+    i += 2
+    msg = f"|-start|{pokemon}"
+
+    # TODO: hardcode indcies for perf gain?
+    msg += START_REASONS[reason]
+    if reason == START_TYPECHANGE_REASON:
+        # types_byte has two types in each of its 4-bit halves
+        types_byte = binary_protocol[i]
+        i += 1
+        type1 = TYPES[types_byte >> 4]
+        type2 = TYPES[types_byte & 0xF]
+        msg += f"|typechange|{type1}/{type2}|[from] move: Conversion|[of]"
+    elif reason >= START_ADDMOVE_MIN_REASON:
+        msg += parse_move(binary_protocol[i])
+        i += 1
+
+    return (msg, i)
+
+
+def end_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    reason = binary_protocol[i + 1]
+    i += 2
+    msg = f"|-end|{pokemon}{END_REASONS[reason]}"
+    return (msg, i)
+
+def immune_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    reason = binary_protocol[i + 1]
+    i += 2
+    msg = f"|-immune|{pokemon}{IMMUNE_REASONS[reason]}"
+    return (msg, i)
+
+def transform_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
+    pokemon = parse_identifier(binary_protocol[i], slots)
+    target = parse_identifier(binary_protocol[i + 1], slots)
+    i += 2
+    return (f"|-transform|{pokemon}|{target}", i)
+
+HANDLERS = [
+    None,
+    lastx_parser('Still'),
+    lastx_parser('Miss'),
+    move_parser,
+    switch_handler,
+    cant_handler,
+    generic_message_parser('faint'),
+    turn_handler,
+    win_handler,
+    tie_handler,
+    damage_handler,
+    heal_handler,
+    status_parser('Status'),
+    status_parser('CureStatus'),
+    boost_handler,
+    returner('|-clearallboost'),
+    fail_handler,
+    generic_message_parser('-miss'),
+    hitcount_handler,
+    prepare_handler,
+    generic_message_parser('-mustrecharge'),
+    activate_handler,
+    returner('|-fieldactivate|'),
+    start_handler,
+    end_handler,
+    returner('|-ohko|'),
+    generic_message_parser('-crit'),
+    generic_message_parser('-supereffective'),
+    generic_message_parser('-resisted'),
+    immune_handler,
+    transform_handler,
+]
 
 def parse_protocol(
     binary_protocol: List[int],
     # https://github.com/python/mypy/issues/5068#issuecomment-389882867
-    slots: Tuple[List[str], List[str]] = ([f"Pokémon #{n}" for n in range(1, 7)],)*2  # type: ignore
+    slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2  # type: ignore
 ) -> List[str]:
     """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
 
     Args:
         binary_protocol (List[int]): An array of byte-length integers of libpkmn protocol.
-        slots (Tuple[List[str], List[str]]): A list of Pokémon names in each slot for sides 1 and 2
+        slots (Slots): A list of Pokémon names in each slot for sides 1 and 2
 
     Returns:
         List[str]: An array of PS protocol messages.
     """
-    bytes_iterator = iter(binary_protocol)
     messages: List[str] = []
-    while True:
-        try:
-            msg_type_byte = next(bytes_iterator)
-        except StopIteration:
+    i = 0
+    while i < len(binary_protocol):
+        msg_type_byte = binary_protocol[i]
+        i += 1
+        if msg_type_byte == 0:
             return messages
-
-        msg_type = MESSAGES[msg_type_byte]
-
-        if msg_type == "None":
-            return messages
-
-        elif msg_type == "LastStill" or msg_type == "LastMiss":
-            to_append = f"|[{msg_type[4:].lower()}]"
-            idx = len(messages) - 1
-            while idx >= 0:
-                if messages[idx].startswith("|move|"):
-                    messages[idx] += to_append
-                    break
-                idx -= 1
-            if idx == -1:
-                raise Exception(f"{msg_type} byte without a previous |move| to append to")
-
-        elif msg_type == "Move":
-            source = parse_identifier(next(bytes_iterator), slots)
-            move = parse_move(next(bytes_iterator))
-            target = parse_identifier(next(bytes_iterator), slots)
-            msg = f"|move|{source}|{move}|{target}"
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            if reason == "None":
-                pass
-            elif reason == "From":
-                msg += f"|[from] {parse_move(next(bytes_iterator))}"
-            else:
-                msg += f"|{reason}"
+        handler = HANDLERS[msg_type_byte]
+        res = handler(binary_protocol, i, slots, messages)
+        if res is not None:
+            (msg, i) = res
             messages.append(msg)
-
-        elif msg_type == "Switch" or msg_type == "Drag":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            species = speciesid_to_name_map[next(bytes_iterator)]
-            level = next(bytes_iterator)
-            current_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            max_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            status = parse_status(next(bytes_iterator))
-
-            messages.append(
-                f"|{msg_type.lower()}|{pokemon}|{species}, L{level}|" +
-                f"{current_hp}/{max_hp}{' ' + status if status else ''}"
-            )
-
-        elif msg_type == "Cant":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            message = f"|cant|{pokemon}"
-            if reason == "Sleep":
-                message += "|slp"
-            elif reason == "Freeze":
-                message += "|frz"
-            elif reason == "Paralysis":
-                message += "|par"
-            elif reason == "Bound":
-                message += "|partiallytrapped"
-            elif reason == "Flinch":
-                message += "|flinch"
-            elif reason == "Disable":
-                move = parse_move(next(bytes_iterator))
-                message += f"|Disable|{move}"
-            elif reason == "Recharge":
-                message += "|recharge"
-            elif reason == "PP":
-                message += "|nopp"
-            else:
-                message += f"|{reason}"
-            messages.append(message)
-
-        elif msg_type == "Faint":
-            target = parse_identifier(next(bytes_iterator), slots)
-            messages.append(f"|faint|{target}")
-
-        elif msg_type == "Turn":
-            turn = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            messages.append(f"|turn|{turn}")
-
-        elif msg_type == "Win":
-            player = next(bytes_iterator)
-            messages.append(f"|win|p{player + 1}")
-
-        elif msg_type == "Tie":
-            messages.append("|tie")
-
-        elif msg_type == "Damage" or msg_type == "Heal":
-            target = parse_identifier(next(bytes_iterator), slots)
-
-            # hp is a 16-bit uint
-            current_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            max_hp = next(bytes_iterator) + (next(bytes_iterator) << 8)
-            status = parse_status(next(bytes_iterator))
-            msg = (
-                f"|-{msg_type.lower()}|{target}|{current_hp}/{max_hp}" +
-                f"{' ' + status if status else ''}"
-            )
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            if reason == "None":
-                pass
-            # is this actually how things are on PS? or should it be |psn?
-            elif reason == "Poison":
-                msg += "|[from] psn"
-            elif reason == "Burn":
-                msg += "|[from] brn"
-            elif reason == "Confusion":
-                msg += "|[from] confusion"
-            elif reason == "LeechSeed":
-                msg += "|[from] leechseed"
-            elif reason == "RecoilOf":
-                recoil_of = parse_identifier(next(bytes_iterator), slots)
-                msg += f"|[from] recoil|[of] {recoil_of}"
-            elif reason == "Silent":
-                msg += "|[silent]"
-            elif reason == "Drain":
-                drain_of = parse_identifier(next(bytes_iterator), slots)
-                msg += f"|[from] drain|[of] {drain_of}"
-            else:
-                msg += f"|[from] {reason}"
-
-            messages.append(msg)
-
-        elif msg_type == "Status" or msg_type == "CureStatus":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            status = parse_status(next(bytes_iterator))
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            msg = f"|-{msg_type.lower()}|{pokemon}|{status}"
-
-            if reason == "None":
-                pass
-            elif reason == "Silent":
-                msg += "|[silent]"
-            elif reason == "From":
-                msg += f"|[from] {parse_move(next(bytes_iterator))}"
-            elif reason == "Message":
-                msg += "|[msg]"
-            else:
-                msg += f"|{reason}"
-
-            messages.append(msg)
-
-        elif msg_type == "ClearAllBoost":
-            messages.append("|-clearallboost")
-
-        elif msg_type == "Fail":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            msg = f"|-fail|{pokemon}"
-            if reason == "None":
-                pass
-            elif reason == "Sleep":
-                msg += "|slp"
-            elif reason == "Poison":
-                msg += "|psn"
-            elif reason == "Burn":
-                msg += "|brn"
-            elif reason == "Freeze":
-                msg += "|frz"
-            elif reason == "Paralysis":
-                msg += "|par"
-            elif reason == "Toxic":
-                msg += "|tox"
-            elif reason == "Substitute":
-                msg += "|move: Substitute"
-            elif reason == "Weak":
-                msg += "|move: Substitute|[weak]"
-            else:
-                msg += f"|{reason}"
-            messages.append(msg)
-
-        elif msg_type in ["Miss", "MustRecharge", "SuperEffective", "Crit", "Resisted"]:
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            messages.append(f"|-{msg_type.lower()}|{pokemon}")
-
-        elif msg_type == "HitCount":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            count = next(bytes_iterator)
-            messages.append(f"|-hitcount|{pokemon}|{count}")
-
-        elif msg_type == "Prepare":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            move = parse_move(next(bytes_iterator))
-            messages.append(f"|-prepare|{pokemon}|{move}")
-
-        elif msg_type == "Activate":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            msg = f"|-activate|{pokemon}"
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            if reason == "Bide":
-                msg += "|Bide"
-            elif reason == "Confusion":
-                msg += '|confusion'
-            elif reason == "Haze":
-                msg += '|move: Haze'
-            elif reason == "Mist":
-                msg += '|move: Mist'
-            elif reason == "Struggle":
-                msg += '|move: Struggle'
-            elif reason == "Substitute":
-                msg += '|Substitute|[damage]'
-            elif reason == "Splash":
-                msg += '||move: Splash'
-            else:
-                msg += f"|{reason}"
-
-            messages.append(msg)
-
-        elif msg_type == "Boost":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASONS['Boost'][next(bytes_iterator)]
-            boost_amount = next(bytes_iterator) - 6
-            name = 'boost' if boost_amount > 0 else 'unboost'
-            message = f"|-{name}|{pokemon}"
-            if reason == "Rage":
-                message += "|atk|[from] Rage"
-            elif reason == "Attack":
-                message += "|atk"
-            elif reason == "Defense":
-                message += "|def"
-            elif reason == "Speed":
-                message += "|spe"
-            elif reason == "SpecialAttack":
-                message += "|spa"
-            elif reason == "SpecialDefense":
-                message += "|spd"
-            elif reason == "Accuracy":
-                message += "|accuracy"
-            elif reason == "Evasion":
-                message += "|evasion"
-            else:
-                message += f"|{reason}"
-            message += f"|{abs(boost_amount)}"
-            messages.append(message)
-
-        elif msg_type == "FieldActivate" or msg_type == "OHKO":
-            messages.append(f"|-{msg_type.lower()}|")
-
-        elif msg_type == "Start":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            msg = f"|-start|{pokemon}"
-            if reason == "Bide":
-                msg += "|Bide"
-            elif reason == "Confusion":
-                msg += "|confusion"
-            elif reason == "ConfusionSilent":
-                msg += "|confusion|[silent]"
-            elif reason == "FocusEnergy":
-                msg += "|move: Focus Energy"
-            elif reason == "LeechSeed":
-                msg += "|move: Leech Seed"
-            elif reason == "LightScreen":
-                msg += "|Light Screen"
-            elif reason == "Mist":
-                msg += "|Mist"
-            elif reason == "Reflect":
-                msg += "|Reflect"
-            elif reason == "Substitute":
-                msg += "|Substitute"
-            elif reason == "TypeChange":
-                # types_byte has two types in each of its 4-bit halves
-                types_byte = next(bytes_iterator)
-                type1 = TYPES[types_byte >> 4]
-                type2 = TYPES[types_byte & 0xF]
-                msg += f"|typechange|{type1}/{type2}|[from] move: Conversion|[of]"
-            elif reason == "Disable" or reason == "Mimic":
-                move = parse_move(next(bytes_iterator))
-                msg += f"|{reason}|move: {move}"
-            else:
-                msg += f"|{reason}"
-            messages.append(msg)
-
-        elif msg_type == "End":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            msg = f"|-end|{pokemon}"
-            if reason == "Disable":
-                msg += "|Disable"
-            elif reason == "Confusion":
-                msg += "|confusion"
-            elif reason == "Bide":
-                msg += "|move: Bide"
-            elif reason == "Substitute":
-                msg += "|Substitute"
-            elif reason == "DisableSilent":
-                msg += "|Disable|[silent]"
-            elif reason == "ConfusionSilent":
-                msg += "|confusion|[silent]"
-            elif reason == "Mist":
-                msg += "|mist|[silent]"
-            elif reason == "FocusEnergy":
-                msg += "|focusenergy|[silent]"
-            elif reason == "LeechSeed":
-                msg += "|leechseed|[silent]"
-            elif reason == "Toxic":
-                msg += "|Toxic counter|[silent]"
-            elif reason == "LightScreen":
-                msg += "|lightscreen|[silent]"
-            elif reason == "Reflect":
-                msg += "|reflect|[silent]"
-            else:
-                msg += f"|{reason}"
-            messages.append(msg)
-
-        elif msg_type == "Immune":
-            pokemon = parse_identifier(next(bytes_iterator), slots)
-            reason = REASONS[msg_type][next(bytes_iterator)]
-            msg = f"|-immune|{pokemon}"
-            if reason == "None":
-                pass
-            elif reason == "OHKO":
-                msg += "|[ohko]"
-            else:
-                msg += f"|{reason}"
-            messages.append(msg)
-
-        elif msg_type == "Transform":
-            source = parse_identifier(next(bytes_iterator), slots)
-            target = parse_identifier(next(bytes_iterator), slots)
-            messages.append(f"|-transform|{source}|{target}")
-
-        else:
-            messages.append("Unknown message type encountered: {}".format(msg_type))
-            return messages
+    return messages

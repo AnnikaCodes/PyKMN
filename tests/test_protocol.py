@@ -14,6 +14,8 @@ class TestProtocolParsing(unittest.TestCase):
     def case(self, protocol: List[int], expected: List[str]):
         """Assert that the protocol parses to the expected message."""
         self.assertListEqual(parse_protocol(protocol), expected)
+        # for _ in range(200000):
+        #     parse_protocol(protocol)
 
     def test_laststill(self):
         """Should parse a LastStill byte."""
