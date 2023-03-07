@@ -1,11 +1,12 @@
 """Battle simulation for Generation I."""
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
-from pykmn.engine.common import Result, Player, BattleChoiceType, Softlock, BattleChoice
+from pykmn.engine.common import Result, Player, BattleChoiceType, Softlock, BattleChoice, \
+    pack_u16_as_bytes, pack_two_u4s
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
-    SPECIES, TYPES, MOVES
+    SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES
 
-from typing import List, Tuple
+from typing import List, Tuple, cast
 from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
@@ -137,78 +138,141 @@ def statcalc(
 class Pokemon:
     """A Pokémon in a Generation I battle."""
 
-    def __init__(
-        self,
-        name: str,
-        moves: List[Move],
-        level: int = 100,
-        hp: int | None = None,
-        status: Status = Status.healthy(),
-        dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0},
-        experience: Gen1StatData = {
-            'hp': 65535, 'atk': 65535, 'def': 65535, 'spc': 65535, 'spe': 65535,
-        },
-    ):
+    def __init__(self, _bytes):
         """Construct a new Pokemon object.
 
-        Args:
-            name (str): The Pokémon's name. Throws an exception if this isn't a valid Pokémon name.
-            moves (List[MoveSlot]): The Pokémon's moves. Must be <= 4.
-            level (int, optional): The Pokémon's level. Defaults to 100.
-            hp (int, optional): The amount of HP the Pokémon has. Defaults to 0.
-            status (Status, optional): The Pokémon's status condition. Defaults to Status.Healthy.
+        Users shouldn't use this, but instead use Pokemon.new() and Pokemon.initialize(),
+        or invoke a Battle/Side constructor directly.
         """
-        # TODO: do we have to deal with None-species?
-        # ha ha left pokemon none species
-        if name not in SPECIES and name != 'None':
-            raise ValueError(f"'{name}' is not a valid Pokémon name in Generation I.")
+        assert len(_bytes) == LAYOUT_SIZES['Pokemon'], \
+            f"Pokemon data bytes must be {LAYOUT_SIZES['Pokemon']} long."
+        self._bytes = _bytes
 
-        self.stats: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
-        if name != 'None':
-            self.types = SPECIES[name]['types']
-            for stat in SPECIES[name]['stats']:
-                self.stats[stat] = statcalc(  # type: ignore
-                    base_value=SPECIES[name]['stats'][stat],  # type: ignore
-                    level=level,
-                    dv=dvs[stat],  # type: ignore
-                    is_HP=stat == 'hp',
-                )
+
+    @staticmethod
+    def new(
+        species_name: str,
+        move_names: Tuple[str, str, str, str],
+        hp: int | None = None,
+        status: int = 0,  # TODO: better status parsing
+        level: int = 100,
+        stats: Gen1StatData | None = None,
+        types: Tuple[str, str] | None = None,
+        move_pp: Tuple[int, int, int, int] | None = None,
+        dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15},
+        exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535},
+    ):
+        """Creates a new Pokémon and initializes it."""
+        p = Pokemon(_bytes=ffi.new("uint8_t[]", LAYOUT_SIZES['Pokemon']))
+        p.initialize(species_name, move_names, hp, status, level, stats, types, move_pp, dvs, exp)
+        return p
+
+    def initialize(
+        self,
+        species_name: str,
+        move_names: Tuple[str, str, str, str],
+        hp: int | None = None,
+        status: int = 0,  # TODO: better status parsing
+        level: int = 100,
+        stats: Gen1StatData | None = None,
+        types: Tuple[str, str] | None = None,
+        move_pp: Tuple[int, int, int, int] | None = None,
+        dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15},
+        exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535},
+    ):
+        """Initializes the Pokémon's data, overwriting its data buffer with new values.
+
+        Stats, types, and move PP are inferred based on the provided species and move names,
+        but can optionally be specified.
+
+        Args:
+            species_name (str): The name of the Pokémon.
+            move_names (Tuple[str, str, str, str]): The four moves the Pokémon knows.
+                Specify "None" if a Pokémon shouldn't have a move in that slot.
+            hp (int | None, optional): The amount of HP the Pokémon has; defaults to its max HP.
+            status (int, optional): The Pokémon's status code. Defaults to healthy.
+            stats (Gen1StatData, optional): The Pokémon's stats.
+                By default, will be determined based on its species & level.
+            types (Tuple[str, str], optional): The Pokémon's types.
+                By default, determined by its species.
+            move_pp (Tuple[int, int, int, int], optional): PP values for each move.
+                By default, determined by the move's max PP.
+            dvs (Gen1StatData, optional): The Pokémon's DVs. Defaults to 15 in all stats.
+            exp (Gen1StatData, optional): The Pokémon's stat experience. Defaults to 65535 in all.
+        """
+        if species_name == 'None':
+            if stats is None:
+                stats = {'hp': 0, 'atk': 0, 'def': 0, 'spe': 0, 'spc': 0}
+            if types is None:
+                types = ('Normal', 'Normal')
+        elif species_name in SPECIES:
+            if stats is None:
+                # optimization possible here:
+                # skip the copy and just mandate that callers supply base stats
+                stats = SPECIES[species_name]['stats'].copy()
+                for stat in stats:
+                    stats[stat] = statcalc(  # type: ignore
+                        stats[stat],  # type: ignore
+                        stat == 'hp',
+                        level,
+                        dvs[stat], # type: ignore
+                        exp[stat], # type: ignore
+                    )
+            if types is None:
+                first_type = SPECIES[species_name]['types'][0]
+                second_type = SPECIES[species_name]['types'][1] \
+                    if len(SPECIES[species_name]['types']) > 1 else first_type
+                types = (first_type, second_type)
         else:
-            self.types = ['Normal', 'Normal']
+            raise ValueError(f"'{species_name}' is not a valid species in Generation I.")
 
-        self.name = name
-        self.moves = moves
-        self.level = level
-        self.hp = self.stats['hp'] if hp is None else hp
-        self.status = status
+        if hp is None:
+            hp = stats['hp']
 
-    def _to_bits(self) -> Bits:
-        """Pack the Pokémon into a bitstring."""
-        first_type = TYPES.index(self.types[0])
-        try:
-            second_type = TYPES.index(self.types[1])
-        except IndexError:
-            # this is how single-type Pokémon are represented in libpkmn
-            # https://github.com/pkmn/engine/blob/main/src/lib/gen1/data/species.zig#L451-L455
-            second_type = first_type  # this
+        offset = LAYOUT_OFFSETS['Pokemon']['stats']
+        # pack stats
+        for stat in ['hp', 'atk', 'def', 'spe', 'spc']:
+            self._bytes[offset:offset + 2] = pack_u16_as_bytes(stats[stat]) # type: ignore
+            offset += 2
+        assert offset == LAYOUT_OFFSETS['Pokemon']['moves']
 
-        # TODO: see if we can combine Move + MoveSlot?
-        stats = _pack_stats(self.stats)
-        bits = Bits().join(
-            [stats] + [move._to_slot_bits() for move in self.moves] + [
-                Bits(uintne=self.hp, length=16),
-                Bits(uintne=self.status.to_int(), length=8),
-                Bits(uintne=SPECIES_IDS[self.name], length=8),
-                Bits(uint=first_type, length=4),
-                Bits(uint=second_type, length=4),
-                Bits(uintne=self.level, length=8),
-            ]
-        )
+        # pack moves
+        for move_index in range(4):
+            move_id = MOVE_IDS[move_names[move_index]]
+            pp = math.floor(MOVES[move_names[move_index]] * 8 / 5) \
+                if move_pp is None else move_pp[move_index]
+            self._bytes[offset] = move_id
+            offset += 1
+            self._bytes[offset] = pp
+            offset += 1
+        assert offset == LAYOUT_OFFSETS['Pokemon']['hp']
 
-        assert bits.length == 24 * 8, \
-            f"Pokemon._to_bits() returned a bitstring of length {bits.length}, expected {24 * 8}"
-        return bits
+        # pack HP
+        self._bytes[offset:offset + 2] = pack_u16_as_bytes(hp)
+        print(f"packed HP: {self._bytes[offset]}, {self._bytes[offset + 1]}, {self._bytes[offset + 2]}")
+        print(f"HP: {hp}")
+        offset += 2
+        assert offset == LAYOUT_OFFSETS['Pokemon']['status']
 
+        # pack status
+        self._bytes[offset] = status
+        offset += 1
+        assert offset == LAYOUT_OFFSETS['Pokemon']['species']
+
+        # pack species
+        self._bytes[offset] = SPECIES_IDS[species_name]
+        offset += 1
+        assert offset == LAYOUT_OFFSETS['Pokemon']['types']
+
+        # pack types
+        self._bytes[offset] = pack_two_u4s(TYPES.index(types[0]), TYPES.index(types[1]))
+        offset += 1
+        assert offset == LAYOUT_OFFSETS['Pokemon']['level']
+
+        # pack level
+        self._bytes[offset] = level
+        offset += 1
+        assert offset == LAYOUT_SIZES['Pokemon']
 
 def moves(*args):
     """Convert a list of move names into a list of Move objects."""
@@ -469,7 +533,7 @@ class Side:
         Use the Battle() constructor instead.
         """
         bits = Bits().join(
-            [pokemon._to_bits() for pokemon in self.team] +  # 6 Pokemon
+            [Bits(bytes(pokemon._bytes)) for pokemon in self.team] +  # 6 Pokemon
             # an all-zeroes region to be later replaced with ActivePokemon
             [Bits(uint=0, length=32 * 8)] +
             [Bits(uintne=n, length=8) for n in self.order] + [  # order: 6 u8s

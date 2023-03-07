@@ -1,5 +1,6 @@
 """This file includes common functionality like bindings for pkmn_result."""
 from enum import Enum
+from typing import Tuple
 from _pkmn_engine_bindings import lib  # type: ignore
 
 # This file needs some testing, but I think it makes sense to test it
@@ -146,3 +147,28 @@ class Softlock(Exception):
     """This exception may be raised when a battle has softlocked."""
 
     pass
+
+
+def pack_u16_as_bytes(n: int) -> Tuple[int, int]:
+    """Pack an unsigned 16-bit integer into a pair of bytes.
+
+    Args:
+        n (int): The unsigned 16-bit integer to pack.
+
+    Returns:
+        Tuple[int, int]: The pair of bytes.
+    """
+    return (n & 0xFF, (n >> 8))
+
+def pack_two_u4s(a: int, b: int) -> int:
+    """Pack two unsigned 4-bit integers into a single byte.
+
+    Args:
+        a (int): The first unsigned 4-bit integer to pack.
+        b (int): The second unsigned 4-bit integer to pack.
+
+    Returns:
+        int: The single byte.
+    """
+    return (a & 0x0F) | ((b & 0x0F) << 4)
+
