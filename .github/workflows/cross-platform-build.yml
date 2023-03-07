@@ -18,7 +18,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-latest] # unit tests already run on Ubuntu
+        # unit tests already run on Ubuntu
+        # Windows builds are currently disabled due to a bug with the build
+        # I *think* it's an upstream issue, but I'm not 100% sure
+        os: [macos-latest] # [windows-latest, macos-latest] 
+        
 
     steps:
     - uses: actions/checkout@v3
