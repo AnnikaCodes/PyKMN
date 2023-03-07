@@ -1,4 +1,4 @@
-"""Sets up the build of the pykmn package."""
+"""Sets up the build of the PyKMN package."""
 from setuptools import setup
 
 # Sadly, it doesn't seem possible to express this in pyproject.toml.

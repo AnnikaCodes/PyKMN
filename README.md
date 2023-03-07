@@ -1,7 +1,7 @@
-# PYkmn
-[![Cross-Platform Build](https://github.com/AnnikaCodes/pykmn/actions/workflows/cross-platform-build.yml/badge.svg)](https://github.com/AnnikaCodes/pykmn/actions/workflows/cross-platform-build.yml)
-[![Lint & Test](https://github.com/AnnikaCodes/pykmn/actions/workflows/test.yml/badge.svg)](https://github.com/AnnikaCodes/pykmn/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/AnnikaCodes/pykmn/branch/main/graph/badge.svg?token=604F57HO3O)](https://codecov.io/gh/AnnikaCodes/pykmn)
+# PyKMN
+[![Cross-Platform Build](https://github.com/AnnikaCodes/PyKMN/actions/workflows/cross-platform-build.yml/badge.svg)](https://github.com/AnnikaCodes/PyKMN/actions/workflows/cross-platform-build.yml)
+[![Lint & Test](https://github.com/AnnikaCodes/PyKMN/actions/workflows/test.yml/badge.svg)](https://github.com/AnnikaCodes/PyKMN/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/AnnikaCodes/PyKMN/branch/main/graph/badge.svg?token=604F57HO3O)](https://codecov.io/gh/AnnikaCodes/PyKMN)
 
 Python bindings for [libpkmn](https://github.com/pkmn/engine).
 

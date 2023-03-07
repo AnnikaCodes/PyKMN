@@ -755,8 +755,8 @@ class Battle:
             # generation in question's MAX_LOGS bytes).
             raise Exception(
                 "An error was thrown in libpkmn while updating the battle. " +
-                "This should never happen; please file a bug report with PYkmn at " +
-                "https://github.com/AnnikaCodes/PYkmn/issues/new"
+                "This should never happen; please file a bug report with PyKMN at " +
+                "https://github.com/AnnikaCodes/PyKMN/issues/new"
             )
         return (result, trace_buf)
 

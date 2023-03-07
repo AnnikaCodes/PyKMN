@@ -163,7 +163,7 @@ def find_zig() -> str:
     if zig_platform not in zig_download_index[version]:
         log(
             f"Couldn't find a Zig compiler for your platform ({zig_platform}). " +
-            "Please manually install Zig; version {version} should be compatible with pykmn.",
+            "Please manually install Zig; version {version} should be compatible with PyKMN.",
             color=RED
         )
         exit(1)

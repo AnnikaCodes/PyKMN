@@ -42,10 +42,10 @@ jobs:
     - name: Check types
       run: mypy .
 
-    - name: Build pykmn
+    - name: Build PyKMN
       run: python3 -m build
 
-    - name: Install pykmn
+    - name: Install PyKMN
       run: python3 -m pip install --find-links=dist pykmn
 
     - name: Run unit tests
