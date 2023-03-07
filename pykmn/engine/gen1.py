@@ -6,7 +6,7 @@ from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import List, Tuple, cast
+from typing import List, Tuple, cast, TypedDict
 from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
@@ -139,6 +139,14 @@ def statcalc(
     return (core * math.trunc(level / 100) + factor) % 2**16
 
 
+SpeciesName = str
+ExtraPokemonData = TypedDict('ExtraPokemonData', {
+    'hp': int, 'status': int, 'level': int, 'stats': Gen1StatData,
+    'types': Tuple[str, str], 'move_pp': Tuple[int, int, int, int],
+    'dvs': Gen1StatData, 'exp': Gen1StatData,
+}, total=False)
+PokemonInitializer = Tuple[SpeciesName, Moveset] | Tuple[SpeciesName, Moveset, ExtraPokemonData]
+
 # TODO: make all these classes simple wrappers around binary and have staticmethods to generate them
 class Pokemon:
     """A Pokémon in a Generation I battle."""
@@ -155,56 +163,67 @@ class Pokemon:
 
 
     @staticmethod
-    def new(
-        species_name: str,
-        move_names: Moveset,
-        hp: int | None = None,
-        status: int = 0,  # TODO: better status parsing
-        level: int = 100,
-        stats: Gen1StatData | None = None,
-        types: Tuple[str, str] | None = None,
-        move_pp: Tuple[int, int, int, int] | None = None,
-        dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15},
-        exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535},
-    ):
+    def new(initial_data: PokemonInitializer):
         """Creates a new Pokémon and initializes it."""
         p = Pokemon(_bytes=ffi.new("uint8_t[]", LAYOUT_SIZES['Pokemon']))
-        p.initialize(species_name, move_names, hp, status, level, stats, types, move_pp, dvs, exp)
+        p.initialize(initial_data)
         return p
 
-    def initialize(
-        self,
-        species_name: str,
-        move_names: Moveset,
-        hp: int | None = None,
-        status: int = 0,  # TODO: better status parsing
-        level: int = 100,
-        stats: Gen1StatData | None = None,
-        types: Tuple[str, str] | None = None,
-        move_pp: Tuple[int, int, int, int] | None = None,
-        dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15},
-        exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535},
-    ):
+    def initialize(self, data: PokemonInitializer):
         """Initializes the Pokémon's data, overwriting its data buffer with new values.
 
         Stats, types, and move PP are inferred based on the provided species and move names,
         but can optionally be specified.
 
         Args:
-            species_name (str): The name of the Pokémon.
-            move_names (Moveset): The four moves the Pokémon knows.
-                Specify "None" if a Pokémon shouldn't have a move in that slot.
-            hp (int | None, optional): The amount of HP the Pokémon has; defaults to its max HP.
-            status (int, optional): The Pokémon's status code. Defaults to healthy.
-            stats (Gen1StatData, optional): The Pokémon's stats.
-                By default, will be determined based on its species & level.
-            types (Tuple[str, str], optional): The Pokémon's types.
-                By default, determined by its species.
-            move_pp (Tuple[int, int, int, int], optional): PP values for each move.
-                By default, determined by the move's max PP.
-            dvs (Gen1StatData, optional): The Pokémon's DVs. Defaults to 15 in all stats.
-            exp (Gen1StatData, optional): The Pokémon's stat experience. Defaults to 65535 in all.
+            data (PokemonInitializer): The data to initialize the Pokémon with.
+                The first value should be the species name,
+                and the second value should be a Moveset with the Pokémon's moves.
+                Optionally, a third value can be specified,
+                a dictionary with any of the following keys:
+                    * hp (int): The amount of HP the Pokémon has; defaults to its max HP.
+                    * status (int): The Pokémon's status code. Defaults to healthy.
+                    * level (int): The Pokémon's level. Defaults to 100.
+                    * stats (Gen1StatData): The Pokémon's stats.
+                        By default, will be determined based on its species & level.
+                    * types (Tuple[str, str]): The Pokémon's types.
+                        By default, determined by its species.
+                    * move_pp (Tuple[int, int, int, int]): PP values for each move.
+                        By default, determined by the move's max PP.
+                    * dvs (Gen1StatData): The Pokémon's DVs. Defaults to 15 in all stats.
+                    * exp (Gen1StatData): The Pokémon's stat experience. Defaults to 65535 in all.
         """
+
+        hp = None
+        status = 0
+        level = 100
+        stats = None
+        types = None
+        move_pp = None
+        dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15}
+        exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535}
+        if len(data) == 3:
+            species_name, move_names, extra_data = \
+                cast(Tuple[SpeciesName, Moveset, ExtraPokemonData], data)
+            if 'hp' in extra_data:
+                hp = extra_data['hp']
+            if 'status' in extra_data:
+                status = extra_data['status']
+            if 'level' in extra_data:
+                level = extra_data['level']
+            if 'stats' in extra_data:
+                stats = extra_data['stats']
+            if 'types' in extra_data:
+                types = extra_data['types']
+            if 'move_pp' in extra_data:
+                move_pp = extra_data['move_pp']
+            if 'dvs' in extra_data:
+                dvs = extra_data['dvs']
+            if 'exp' in extra_data:
+                exp = extra_data['exp']
+        else:
+            species_name, move_names = cast(Tuple[SpeciesName, Moveset], data)
+
         if species_name == 'None':
             if stats is None:
                 stats = {'hp': 0, 'atk': 0, 'def': 0, 'spe': 0, 'spc': 0}
@@ -610,50 +629,62 @@ class Volatiles:
 #         self.moveslots = moveslots
 
 
+SideInitializerDict = TypedDict('SideInitializerDict', {
+    'team': List[PokemonInitializer], 'last_selected_move': str, 'last_used_move': str,
+})
+SideInitializer = List[PokemonInitializer] | SideInitializerDict
 class Side:
     """A side in a Generation I battle."""
 
-    team: List[Pokemon]
-    # active: ActivePokemon
-    last_selected_move: Move
-    last_used_move: Move
-
-    def __init__(
-        self,
-        team: List[Pokemon],
-        # active: ActivePokemon | None = None,
-        last_selected_move: Move = Move('None'),
-        last_used_move: Move = Move('None'),
-    ):
+    def __init__(self, _bytes):
         """Construct a new Side object.
 
-        Args:
-            team (List[Pokemon]): The Pokémon on the side.
-            last_selected_move (Move): The last move selected by the player.
-            last_used_move (Move): The last move used by the player.
+        Users shouldn't use this, but instead use Side.new() and Sude.initialize(),
+        or invoke a Battle constructor directly.
         """
+        self._bytes = _bytes
+        team = []
+        offset = LAYOUT_OFFSETS['Side']['pokemon']
+        for _ in range(6):
+            team.append(Pokemon(self._bytes[offset:(offset + LAYOUT_SIZES['Pokemon'])]))
+            offset += LAYOUT_SIZES['Pokemon']
+        assert offset == LAYOUT_OFFSETS['Side']['active']
         self.team = team
-        # self.active = active
-        self.last_selected_move = last_selected_move
-        self.last_used_move = last_used_move
 
-    def _to_bits(self) -> Bits:
-        """
-        Pack the side data into a bitstring.
+    @staticmethod
+    def new(data: SideInitializer):
+        """Creates a new Side and initializes it."""
+        side = Side(_bytes=ffi.new("uint8_t[]", LAYOUT_SIZES['Side']))
+        side.initialize(data)
+        return side
 
-        Use the Battle() constructor instead.
+    def initialize(self, data: SideInitializer):
+        """Initializes the side.
+
+        Args:
+            data (SideInitializer): Either a list of PokemonInitializers or a dictionary. TODO: docs
         """
-        bits = Bits().join(
-            [Bits(bytes(pokemon._bytes)) for pokemon in self.team] +  # 6 Pokemon
-            # an all-zeroes region to be later replaced with ActivePokemon
-            [Bits(uint=0, length=32 * 8)] +
-            [Bits(uintne=n, length=8) for n in range(1, 7)] + [  # order: 6 u8s
-                self.last_selected_move._to_bits(),
-                self.last_used_move._to_bits(),
-            ]
-        )
-        assert bits.length == 184 * 8, f"Side length is {bits.length} bits, not {184 * 8} bits."
-        return bits
+        is_dict = isinstance(data, dict)
+        team = data['team'] if is_dict else data # type: ignore
+        order = []
+        for i, pokemon_data in enumerate(team):
+            self.team[i].initialize(pokemon_data)
+            order.append(i + 1)
+
+        for i, slot in enumerate(order):
+            self._bytes[LAYOUT_OFFSETS['Side']['order'] + i] = slot
+
+        if is_dict:
+            if 'last_selected_move' in data:
+                self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']] = \
+                   MOVE_IDS[data['last_selected_move']] # type: ignore
+            if 'last_used_move' in data:
+                self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']] = \
+                    MOVE_IDS[data['last_used_move']] # type: ignore
+
+    def last_used_move(self) -> str:
+        """Gets the last move used by the side."""
+        return MOVE_ID_LOOKUP[self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']]]
 
 
 def _pack_stats(stats: Gen1StatData) -> Bits:
@@ -709,10 +740,10 @@ class Battle:
         # https://github.com/pkmn/engine/blob/main/src/data/layout.json gives us the layout.
         # https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L40-L48 also
         battle_data = Bits().join([
-            p2_side._to_bits(),                             # side 1
-            p2_side._to_bits(),                             # side 2
-            Bits(uintne=start_turn, length=16),     # turn
-            Bits(uintne=last_damage, length=16),    # last damage
+            Bits(bytes(p1_side._bytes)),                    # side 1
+            Bits(bytes(p2_side._bytes)),                    # side 2
+            Bits(uintne=start_turn, length=16),             # turn
+            Bits(uintne=last_damage, length=16),            # last damage
             _pack_move_indexes(p1_move_idx, p2_move_idx),   # move indices
             rng._to_bits(),                                 # rng
         ])
@@ -781,7 +812,8 @@ class Battle:
         num_choices = lib.pkmn_gen1_battle_choices(
             self._pkmn_battle,      # pkmn_gen1_battle *battle
             player.value,           # pkmn_player player
-            requested_kind,            # pkmn_choice_kind request
+            # TODO: is IntEnum more performant?
+            requested_kind.value,   # pkmn_choice_kind request
             raw_choices,            # pkmn_choice out[]
             lib.PKMN_OPTIONS_SIZE,  # size_t len
         )

@@ -112,6 +112,11 @@ class Choice:
         """
         self._pkmn_choice = _pkmn_choice  # uint8_t
 
+    @staticmethod
+    def PASS():
+        """Create a PASS choice."""
+        return Choice(0)
+
     def type(self) -> ChoiceType:
         """Get the type of the choice (pass/move/switch).
 
