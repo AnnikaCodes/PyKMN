@@ -24,7 +24,7 @@ GREEN = '\033[92m'
 ORANGE = '\033[93m'
 RED = '\033[91m'
 
-got_own_zig = False
+downloaded_zig = False
 
 indent = 1
 
@@ -124,7 +124,7 @@ def find_zig() -> str:
     Returns:
         str: the path to a usable Zig executable
     """
-    global got_own_zig
+    global downloaded_zig
     log("Looking for a Zig compiler...")
     system_zig = shutil.which("zig")
     if system_zig is not None:
@@ -138,7 +138,7 @@ def find_zig() -> str:
                 color=ORANGE,
             )
 
-    got_own_zig = True
+    downloaded_zig = True
     log("Fetching Zig download index")
     zig_download_index = requests.get(ZIG_DOWNLOAD_INDEX_URL).json()
     newest_version = sorted(
@@ -297,7 +297,7 @@ ffibuilder.set_source(
     extra_link_args=["-fPIC"],
 )
 
-if got_own_zig:
+if downloaded_zig:
     log("Removing Zig toolchain")
     shutil.rmtree("zig-toolchain")
 

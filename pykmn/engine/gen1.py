@@ -1,6 +1,6 @@
 """Battle simulation for Generation I."""
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
-from pykmn.engine.common import Result, Player, BattleChoiceType, Softlock, BattleChoice, \
+from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
     pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
@@ -11,6 +11,8 @@ from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
 import math
+
+# optimization possible here: don't copy in intialization if it's all 0 anyway?
 
 MovePP = Tuple[str, int]
 
@@ -610,7 +612,6 @@ class Side:
 
     team: List[Pokemon]
     # active: ActivePokemon
-    order: List[int]
     last_selected_move: Move
     last_used_move: Move
 
@@ -618,7 +619,6 @@ class Side:
         self,
         team: List[Pokemon],
         # active: ActivePokemon | None = None,
-        order: List[int] = [0, 0, 0, 0, 0, 0],
         last_selected_move: Move = Move('None'),
         last_used_move: Move = Move('None'),
     ):
@@ -626,14 +626,11 @@ class Side:
 
         Args:
             team (List[Pokemon]): The Pokémon on the side.
-            order (List[int]): The order of the Pokémon on the side.
             last_selected_move (Move): The last move selected by the player.
             last_used_move (Move): The last move used by the player.
         """
-        assert len(order) == 6, f"Order must be 6, not {len(order)}, elements long."
         self.team = team
         # self.active = active
-        self.order = order
         self.last_selected_move = last_selected_move
         self.last_used_move = last_used_move
 
@@ -647,7 +644,7 @@ class Side:
             [Bits(bytes(pokemon._bytes)) for pokemon in self.team] +  # 6 Pokemon
             # an all-zeroes region to be later replaced with ActivePokemon
             [Bits(uint=0, length=32 * 8)] +
-            [Bits(uintne=n, length=8) for n in self.order] + [  # order: 6 u8s
+            [Bits(uintne=n, length=8) for n in range(1, 7)] + [  # order: 6 u8s
                 self.last_selected_move._to_bits(),
                 self.last_used_move._to_bits(),
             ]
@@ -726,11 +723,11 @@ class Battle:
         self._pkmn_battle.bytes = battle_data.tobytes()
         self._bits = battle_data
 
-    def update(self, p1_choice: BattleChoice, p2_choice: BattleChoice) -> Tuple[Result, List[int]]:
+    def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
 
         Args:
-            choice (BattleChoice): The choice to make.
+            choice (Choice): The choice to make.
 
         Returns:
             Tuple[Result, List[int]]: The result of the choice,
@@ -763,22 +760,25 @@ class Battle:
     def possible_choices(
         self,
         player: Player,
-        requested_kind: BattleChoiceType,
-    ) -> List[BattleChoice]:
+        previous_turn_result: Result,
+    ) -> List[Choice]:
         """Get the possible choices for the given player.
 
         Args:
             player (Player): The player to get choices for.
-            requested_kind (BattleChoiceKind): The kind of choice to get.
+            previous_turn_result (Result): The result of the previous turn
+                (the first turn should be two PASS choices).
 
         Returns:
-            List[BattleChoice]: The possible choices.
+            List[Choice]: The possible choices.
         """
         raw_choices = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
+        requested_kind = previous_turn_result.p1_choice_type() if player == Player.P1 \
+            else previous_turn_result.p2_choice_type()
         num_choices = lib.pkmn_gen1_battle_choices(
             self._pkmn_battle,      # pkmn_gen1_battle *battle
             player.value,           # pkmn_player player
-            requested_kind.value,   # pkmn_choice_kind request
+            requested_kind,            # pkmn_choice_kind request
             raw_choices,            # pkmn_choice out[]
             lib.PKMN_OPTIONS_SIZE,  # size_t len
         )
@@ -786,7 +786,7 @@ class Battle:
         if num_choices == 0:
             raise Softlock("Zero choices are available.")
 
-        choices: List[BattleChoice] = []
+        choices: List[Choice] = []
         for i in range(num_choices):
-            choices.append(BattleChoice(raw_choices[i]))
+            choices.append(Choice(raw_choices[i]))
         return choices

@@ -7,7 +7,7 @@ from _pkmn_engine_bindings import lib  # type: ignore
 # along with the battle simulation tests.
 
 
-class BattleChoiceType(Enum):
+class ChoiceType(Enum):
     """An enum representing the types of choice players can make in a Pokémon battle.
 
     Python version of pkmn_choice_kind.
@@ -64,19 +64,19 @@ class Result:
         """
         return ResultType(lib.pkmn_result_type(self._pkmn_result))
 
-    def p1_choice_type(self) -> BattleChoiceType:
+    def p1_choice_type(self) -> ChoiceType:
         """Get the type of choice the first player made.
 
         Python version of pkmn_result_p1.
         """
-        return BattleChoiceType(lib.pkmn_result_p1(self._pkmn_result))
+        return ChoiceType(lib.pkmn_result_p1(self._pkmn_result))
 
-    def p2_choice_type(self) -> BattleChoiceType:
+    def p2_choice_type(self) -> ChoiceType:
         """Get the type of choice the second player made.
 
         Python version of pkmn_result_p2.
         """
-        return BattleChoiceType(lib.pkmn_result_p2(self._pkmn_result))
+        return ChoiceType(lib.pkmn_result_p2(self._pkmn_result))
 
     def is_error(self) -> bool:
         """Check if the result is an error.
@@ -93,7 +93,7 @@ class Result:
         )
 
 
-class BattleChoice:
+class Choice:
     """Represents a choice a player makes in a Pokémon battle.
 
     Python version of pkmn_choice.
@@ -108,16 +108,16 @@ class BattleChoice:
 
         If you pass an invalid choice to libpkmn, it may behave unpredictably or cause errors.
 
-        Use the `possible_choices` method of the Battle class to get BattleChoice objects.
+        Use the `possible_choices` method of the Battle class to get Choice objects.
         """
         self._pkmn_choice = _pkmn_choice  # uint8_t
 
-    def type(self) -> BattleChoiceType:
+    def type(self) -> ChoiceType:
         """Get the type of the choice (pass/move/switch).
 
         Python version of pkmn_choice_type.
         """
-        return BattleChoiceType(lib.pkmn_choice_type(self._pkmn_choice))
+        return ChoiceType(lib.pkmn_choice_type(self._pkmn_choice))
 
     def data(self) -> int | None:
         """Get the data associated with the choice.
@@ -125,22 +125,22 @@ class BattleChoice:
         Returns:
             int | None: slot number for a switch or move index for a move
         """
-        if self.type() == BattleChoiceType.PASS:
+        if self.type() == ChoiceType.PASS:
             return None
         return lib.pkmn_choice_data(self._pkmn_choice)
 
     def __repr__(self) -> str:
-        """Provide a string representation of the BattleChoice."""
+        """Provide a string representation of the Choice."""
         type = self.type()
-        if type == BattleChoiceType.MOVE:
+        if type == ChoiceType.MOVE:
             data = self.data()
             if data == 0:
-                return "BattleChoice(can't select a move)"
-            return f"BattleChoice(move #{self.data()})"
-        elif type == BattleChoiceType.SWITCH:
-            return f"BattleChoice(switch to slot #{self.data()})"
+                return "Choice(can't select a move)"
+            return f"Choice(move #{self.data()})"
+        elif type == ChoiceType.SWITCH:
+            return f"Choice(switch to slot #{self.data()})"
         else:
-            return "BattleChoice(pass)"
+            return "Choice(pass)"
 
 
 class Softlock(Exception):

@@ -1,5 +1,5 @@
 """Test script."""
-from pykmn.engine.gen1 import Pokemon, Battle, Side, Player, BattleChoice
+from pykmn.engine.gen1 import Pokemon, Battle, Side, Player, Choice, ChoiceType
 from pykmn.engine.common import ResultType
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.protocol import parse_protocol
@@ -51,13 +51,13 @@ def run_battle(log=False):
 
     # print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
     # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
-    (result, trace) = battle.update(BattleChoice(0), BattleChoice(0))
+    (result, trace) = battle.update(Choice(ChoiceType.PASS), Choice(0))
     # print("---------- Battle setup ----------\nTrace: ")
     # for msg in parse_protocol(trace):
     #     print(f"* {msg}")
 
     choice = 1
-    while True:
+    while result.type() == ResultType.NONE:
         if log:
             print(f"\n------------ Choice {choice} ------------")
         choice += 1
@@ -72,12 +72,5 @@ def run_battle(log=False):
             print("\nTrace: ")
             for msg in parse_protocol(trace):
                 print(f"* {msg}")
-        if result.type() != ResultType.NONE:
-            if log:
-                print(f"RESULT: {result}")
-            return
 
-n = 10000
-for _ in range(n):
-    run_battle(log=False)
-print(f"{n} battles run!")
+run_battle(log=True)
