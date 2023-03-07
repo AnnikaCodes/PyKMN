@@ -140,6 +140,8 @@ GEN1_SPECIES_IDS: Dict[str, int] = {'None': 0}
 for (index, species_name) in enumerate(list(GEN1_SPECIES.keys())):
     GEN1_SPECIES_IDS[species_name] = index + 1
 
+GEN1_SPECIES_ID_LOOKUP: Dict[int, str] = {v: k for k, v in GEN1_SPECIES_IDS.items()}
+
 """
 A dictionary of Pokémon move data.
 
@@ -155,6 +157,8 @@ Move names are keys, and values are libpkmn move IDs.
 GEN1_MOVE_IDS: Dict[str, int] = {'None': 0}
 for (index, move_name) in enumerate(list(GEN1_MOVES.keys())):
     GEN1_MOVE_IDS[move_name] = index + 1
+
+GEN1_MOVE_ID_LOOKUP: Dict[int, str] = {v: k for k, v in GEN1_MOVE_IDS.items()}
 
 
 """A list of Pokémon type names."""

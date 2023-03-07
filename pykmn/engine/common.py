@@ -160,6 +160,18 @@ def pack_u16_as_bytes(n: int) -> Tuple[int, int]:
     """
     return (n & 0xFF, (n >> 8))
 
+def unpack_u16_from_bytes(a: int, b: int) -> int:
+    """Unpack a pair of bytes into an unsigned 16-bit integer.
+
+    Args:
+        a (int): The first byte.
+        b (int): The second byte.
+
+    Returns:
+        int: The unsigned 16-bit integer.
+    """
+    return (b << 8) | a
+
 def pack_two_u4s(a: int, b: int) -> int:
     """Pack two unsigned 4-bit integers into a single byte.
 
@@ -171,4 +183,15 @@ def pack_two_u4s(a: int, b: int) -> int:
         int: The single byte.
     """
     return (a & 0x0F) | ((b & 0x0F) << 4)
+
+def unpack_two_u4s(n: int) -> Tuple[int, int]:
+    """Unpack a single byte into two unsigned 4-bit integers.
+
+    Args:
+        n (int): The single byte.
+
+    Returns:
+        Tuple[int, int]: The two unsigned 4-bit integers.
+    """
+    return (n & 0x0F, (n >> 4) & 0x0F)
 

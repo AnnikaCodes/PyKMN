@@ -1,17 +1,18 @@
 """Battle simulation for Generation I."""
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, BattleChoiceType, Softlock, BattleChoice, \
-    pack_u16_as_bytes, pack_two_u4s
+    pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
-    SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES
+    SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import List, Tuple, cast
+from typing import List, Tuple
 from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
 import math
 
+MovePP = Tuple[str, int]
 
 class _InnerStatusEnum(Enum):
     HEALTHY = 0
@@ -239,8 +240,13 @@ class Pokemon:
         # pack moves
         for move_index in range(4):
             move_id = MOVE_IDS[move_names[move_index]]
-            pp = math.floor(MOVES[move_names[move_index]] * 8 / 5) \
-                if move_pp is None else move_pp[move_index]
+            if move_pp is None:
+                if move_id == 0:  # None move
+                    pp = 0
+                else:
+                    pp = math.floor(MOVES[move_names[move_index]] * 8 / 5)
+            else:
+                pp = move_pp[move_index]
             self._bytes[offset] = move_id
             offset += 1
             self._bytes[offset] = pp
@@ -249,8 +255,6 @@ class Pokemon:
 
         # pack HP
         self._bytes[offset:offset + 2] = pack_u16_as_bytes(hp)
-        print(f"packed HP: {self._bytes[offset]}, {self._bytes[offset + 1]}, {self._bytes[offset + 2]}")
-        print(f"HP: {hp}")
         offset += 2
         assert offset == LAYOUT_OFFSETS['Pokemon']['status']
 
@@ -273,6 +277,113 @@ class Pokemon:
         self._bytes[offset] = level
         offset += 1
         assert offset == LAYOUT_SIZES['Pokemon']
+
+    def stats(self) -> Gen1StatData:
+        """Get the Pokémon's current stats.
+
+        Returns:
+            Gen1StatData: The current stats.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['stats']
+        stats = {}
+        for stat in ['hp', 'atk', 'def', 'spe', 'spc']:
+            (byte1, byte2) = self._bytes[offset:offset + 2]
+            stats[stat] = unpack_u16_from_bytes(byte1, byte2)
+            offset += 2
+        return stats # type: ignore
+
+    def moves(self) -> Tuple[str, str, str, str]:
+        """
+        Get the Pokémon's moves.
+
+        Returns:
+            Tuple[str, str, str, str]: The Pokémon's moves.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['moves']
+        return (
+            MOVE_ID_LOOKUP[self._bytes[offset]],
+            MOVE_ID_LOOKUP[self._bytes[offset + 2]],
+            MOVE_ID_LOOKUP[self._bytes[offset + 4]],
+            MOVE_ID_LOOKUP[self._bytes[offset + 6]],
+        )
+
+    def pp_left(self) -> Tuple[int, int, int, int]:
+        """Get the Pokémon's PP left for each move.
+
+        Returns:
+            Tuple[int, int, int, int]: The PP left for each move.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['moves']
+        return (
+            self._bytes[offset + 1],
+            self._bytes[offset + 3],
+            self._bytes[offset + 5],
+            self._bytes[offset + 7],
+        )
+
+    def moves_with_pp(self) -> Tuple[MovePP, MovePP, MovePP, MovePP]:
+        """Get the Pokémon's moves with their PP left.
+
+        Returns:
+            Tuple[MovePP, MovePP, MovePP, MovePP]: The moves with their PP left.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['moves']
+        return (
+            (MOVE_ID_LOOKUP[self._bytes[offset]], self._bytes[offset + 1]),
+            (MOVE_ID_LOOKUP[self._bytes[offset + 2]], self._bytes[offset + 3]),
+            (MOVE_ID_LOOKUP[self._bytes[offset + 4]], self._bytes[offset + 5]),
+            (MOVE_ID_LOOKUP[self._bytes[offset + 6]], self._bytes[offset + 7]),
+        )
+
+
+    def hp(self) -> int:
+        """Get the Pokémon's current HP.
+
+        Returns:
+            int: The current HP.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['hp']
+        (byte1, byte2) = self._bytes[offset:offset + 2]
+        return unpack_u16_from_bytes(byte1, byte2)
+
+    # TODO: good status parsing
+    def status(self) -> int:
+        """Get the Pokémon's status.
+
+        Returns:
+            int: The status.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['status']
+        return self._bytes[offset]
+
+    def species(self) -> str:
+        """Get the Pokémon's species.
+
+        Returns:
+            str: The species.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['species']
+        return SPECIES_ID_LOOKUP[self._bytes[offset]]
+
+    def types(self) -> Tuple[str, str]:
+        """Get the Pokémon's types.
+
+        Returns:
+            Tuple[str, str]: The types.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['types']
+        (type1, type2) = unpack_two_u4s(self._bytes[offset])
+        return (TYPES[type1], TYPES[type2])
+
+    def level(self) -> int:
+        """Get the Pokémon's level.
+
+        Returns:
+            int: The level.
+        """
+        offset = LAYOUT_OFFSETS['Pokemon']['level']
+        return self._bytes[offset]
+
 
 def moves(*args):
     """Convert a list of move names into a list of Move objects."""

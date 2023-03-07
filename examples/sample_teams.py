@@ -1,5 +1,5 @@
 """Test script."""
-from pykmn.engine.gen1 import moves, Pokemon, Battle, Side, Player, BattleChoice
+from pykmn.engine.gen1 import Pokemon, Battle, Side, Player, BattleChoice
 from pykmn.engine.common import ResultType
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.protocol import parse_protocol
@@ -52,17 +52,17 @@ def run_battle(log=False):
     # print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
     # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
     (result, trace) = battle.update(BattleChoice(0), BattleChoice(0))
-    print("---------- Battle setup ----------\nTrace: ")
-    for msg in parse_protocol(trace):
-        print(f"* {msg}")
+    # print("---------- Battle setup ----------\nTrace: ")
+    # for msg in parse_protocol(trace):
+    #     print(f"* {msg}")
 
     choice = 1
     while True:
         if log:
             print(f"\n------------ Choice {choice} ------------")
         choice += 1
-        p1_choice = battle.possible_choices(Player.P1, result.p1_choice_type()).pop()
-        p2_choice = battle.possible_choices(Player.P2, result.p2_choice_type()).pop()
+        p1_choice = random.choice(battle.possible_choices(Player.P1, result.p1_choice_type()))
+        p2_choice = random.choice(battle.possible_choices(Player.P2, result.p2_choice_type()))
         if log:
             print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
         (result, trace) = battle.update(p1_choice, p2_choice)
@@ -75,7 +75,9 @@ def run_battle(log=False):
         if result.type() != ResultType.NONE:
             if log:
                 print(f"RESULT: {result}")
-                return
+            return
 
-
-run_battle(log=True)
+n = 10000
+for _ in range(n):
+    run_battle(log=False)
+print(f"{n} battles run!")
