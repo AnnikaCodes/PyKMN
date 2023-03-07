@@ -27,14 +27,15 @@ class TestGen1Pokemon(unittest.TestCase):
 
     def test_moves(self):
         """Tests that the moves are stored/loaded correctly."""
-        for _ in range(10):
-            moves = tuple(random.choices(list(MOVES.keys()), k=4))
-            pp = tuple(MOVES[moves[n]] * 8 / 5 for n in range(4))
-            pkmn = Pokemon.new('Mew', moves)
-            self.assertTupleEqual(pkmn.moves(), moves)
-            self.assertTupleEqual(pkmn.pp_left(), pp)
-            self.assertTupleEqual(tuple(x[0] for x in pkmn.moves_with_pp()), moves)
-            self.assertTupleEqual(tuple(x[1] for x in pkmn.moves_with_pp()), pp)
+        for length in range(1, 5):
+            for _ in range(10):
+                moves = tuple(random.choices(list(MOVES.keys()), k=length))
+                pp = tuple(MOVES[moves[n]] * 8 / 5 for n in range(length))
+                pkmn = Pokemon.new('Mew', moves)
+                self.assertTupleEqual(pkmn.moves(), moves)
+                self.assertTupleEqual(pkmn.pp_left(), pp)
+                self.assertTupleEqual(tuple(x[0] for x in pkmn.moves_with_pp()), moves)
+                self.assertTupleEqual(tuple(x[1] for x in pkmn.moves_with_pp()), pp)
 
     def test_species(self):
         """Tests that the species is stored/loaded correctly."""

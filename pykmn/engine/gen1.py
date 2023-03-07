@@ -1,12 +1,12 @@
 """Battle simulation for Generation I."""
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
-    pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s
+    pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s # noqa: F401
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import List, Tuple
+from typing import List, Tuple, cast
 from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
@@ -15,6 +15,8 @@ import math
 # optimization possible here: don't copy in intialization if it's all 0 anyway?
 
 MovePP = Tuple[str, int]
+FullMoveset = Tuple[str, str, str, str]
+Moveset = FullMoveset | Tuple[str] | Tuple[str, str] | Tuple[str, str, str]
 
 class _InnerStatusEnum(Enum):
     HEALTHY = 0
@@ -155,7 +157,7 @@ class Pokemon:
     @staticmethod
     def new(
         species_name: str,
-        move_names: Tuple[str, str, str, str],
+        move_names: Moveset,
         hp: int | None = None,
         status: int = 0,  # TODO: better status parsing
         level: int = 100,
@@ -173,7 +175,7 @@ class Pokemon:
     def initialize(
         self,
         species_name: str,
-        move_names: Tuple[str, str, str, str],
+        move_names: Moveset,
         hp: int | None = None,
         status: int = 0,  # TODO: better status parsing
         level: int = 100,
@@ -190,7 +192,7 @@ class Pokemon:
 
         Args:
             species_name (str): The name of the Pokémon.
-            move_names (Tuple[str, str, str, str]): The four moves the Pokémon knows.
+            move_names (Moveset): The four moves the Pokémon knows.
                 Specify "None" if a Pokémon shouldn't have a move in that slot.
             hp (int | None, optional): The amount of HP the Pokémon has; defaults to its max HP.
             status (int, optional): The Pokémon's status code. Defaults to healthy.
@@ -241,14 +243,18 @@ class Pokemon:
 
         # pack moves
         for move_index in range(4):
-            move_id = MOVE_IDS[move_names[move_index]]
-            if move_pp is None:
-                if move_id == 0:  # None move
-                    pp = 0
-                else:
-                    pp = math.floor(MOVES[move_names[move_index]] * 8 / 5)
+            if move_index >= len(move_names):
+                move_id = 0
+                pp = 0
             else:
-                pp = move_pp[move_index]
+                move_id = MOVE_IDS[move_names[move_index]]
+                if move_pp is None:
+                    if move_id == 0:  # None move
+                        pp = 0
+                    else:
+                        pp = math.floor(MOVES[move_names[move_index]] * 8 / 5)
+                else:
+                    pp = move_pp[move_index]
             self._bytes[offset] = move_id
             offset += 1
             self._bytes[offset] = pp
@@ -294,7 +300,7 @@ class Pokemon:
             offset += 2
         return stats # type: ignore
 
-    def moves(self) -> Tuple[str, str, str, str]:
+    def moves(self) -> Moveset:
         """
         Get the Pokémon's moves.
 
@@ -302,39 +308,36 @@ class Pokemon:
             Tuple[str, str, str, str]: The Pokémon's moves.
         """
         offset = LAYOUT_OFFSETS['Pokemon']['moves']
-        return (
-            MOVE_ID_LOOKUP[self._bytes[offset]],
-            MOVE_ID_LOOKUP[self._bytes[offset + 2]],
-            MOVE_ID_LOOKUP[self._bytes[offset + 4]],
-            MOVE_ID_LOOKUP[self._bytes[offset + 6]],
-        )
+        return tuple(
+            MOVE_ID_LOOKUP[self._bytes[offset + n]] \
+                for n in range(0, 8, 2) \
+                if self._bytes[offset + n] != 0
+        ) # type: ignore
 
-    def pp_left(self) -> Tuple[int, int, int, int]:
+    def pp_left(self) -> Tuple[int, ...]:
         """Get the Pokémon's PP left for each move.
 
         Returns:
-            Tuple[int, int, int, int]: The PP left for each move.
+            Tuple[int, ...]: The PP left for each move. Length is equal to the number of moves.
         """
         offset = LAYOUT_OFFSETS['Pokemon']['moves']
-        return (
-            self._bytes[offset + 1],
-            self._bytes[offset + 3],
-            self._bytes[offset + 5],
-            self._bytes[offset + 7],
+        return tuple(
+            self._bytes[offset + n] \
+                for n in range(1, 9, 2) \
+                if self._bytes[offset + n - 1] != 0 # if move exists
         )
 
-    def moves_with_pp(self) -> Tuple[MovePP, MovePP, MovePP, MovePP]:
+    def moves_with_pp(self) -> Tuple[MovePP, ...]:
         """Get the Pokémon's moves with their PP left.
 
         Returns:
             Tuple[MovePP, MovePP, MovePP, MovePP]: The moves with their PP left.
         """
         offset = LAYOUT_OFFSETS['Pokemon']['moves']
-        return (
-            (MOVE_ID_LOOKUP[self._bytes[offset]], self._bytes[offset + 1]),
-            (MOVE_ID_LOOKUP[self._bytes[offset + 2]], self._bytes[offset + 3]),
-            (MOVE_ID_LOOKUP[self._bytes[offset + 4]], self._bytes[offset + 5]),
-            (MOVE_ID_LOOKUP[self._bytes[offset + 6]], self._bytes[offset + 7]),
+        return tuple(
+            (MOVE_ID_LOOKUP[self._bytes[offset + n]], cast(int, self._bytes[offset + n + 1])) \
+                for n in range(0, 8, 2) \
+                if self._bytes[offset + n] != 0
         )
 
 
