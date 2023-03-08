@@ -649,7 +649,7 @@ class Side:
             team.append(Pokemon(self._bytes[offset:(offset + LAYOUT_SIZES['Pokemon'])]))
             offset += LAYOUT_SIZES['Pokemon']
         assert offset == LAYOUT_OFFSETS['Side']['active']
-        self.team = team
+        self.team = tuple(team)
 
     @staticmethod
     def new(data: SideInitializer):
@@ -688,6 +688,10 @@ class Side:
     def last_used_move(self) -> str:
         """Gets the last move used by the side."""
         return MOVE_ID_LOOKUP[self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']]]
+
+    def last_selected_move(self) -> str:
+        """Gets the last move selected by the side."""
+        return MOVE_ID_LOOKUP[self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']]]
 
 
 def _pack_stats(stats: Gen1StatData) -> Bits:
