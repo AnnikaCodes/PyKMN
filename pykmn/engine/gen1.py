@@ -495,6 +495,34 @@ class Battle:
             self._pkmn_battle.bytes[offset:(offset + lib.PKMN_PSRNG_SIZE)],
         ), rng_seed)
 
+    def last_selected_move(self, player: Player) -> str:
+        """Get the last move selected by a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['last_selected_move']
+        return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
+
+    def set_last_selected_move(self, player: Player, move: str):
+        """Set the last move selected by a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['last_selected_move']
+        self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
+
+    def last_used_move(self, player: Player) -> str:
+        """Get the last move used by a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['last_used_move']
+        return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
+
+    def set_last_used_move(self, player: Player, move: str):
+        """Set the last move used by a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['last_used_move']
+        self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
+
     def turn(self) -> int:
         """Get the current turn."""
         offset = LAYOUT_OFFSETS['Battle']['turn']
@@ -511,8 +539,11 @@ class Battle:
             self._pkmn_battle.bytes[offset + 1],
         )
 
-    def last_used_move(self, player: Player) -> int:
-        """Get the index of the last move used by a player."""
+    def last_used_move_index(self, player: Player) -> int:
+        """
+        Get the index within the move array of the Pokémon that was active when the move was used
+        of the last move used by a given player.
+        """
         offset = LAYOUT_OFFSETS['Battle']['last_selected_indexes'] + player.value
         return unpack_u16_from_bytes(
             self._pkmn_battle.bytes[offset],

@@ -45,3 +45,39 @@ class TestBattle(unittest.TestCase):
             self.assertEqual(p1_active_stats[unchanged_stat], p1_original_stats[unchanged_stat])
             self.assertEqual(p2_active_stats[unchanged_stat], p2_original_stats[unchanged_stat])
 
+    def test_last_selected_move(self):
+        """Tests that the last selected move is stored/loaded correctly."""
+        battle = Battle(
+            [('Mew', ('Swords Dance', 'Amnesia'))],
+            [('Mew', ('Amnesia',))],
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+
+        self.assertEqual(battle.p1.last_selected_move(), battle.last_selected_move(Player.P1))
+        self.assertEqual(battle.p2.last_selected_move(), battle.last_selected_move(Player.P2))
+        self.assertEqual(battle.p1.last_used_move(), battle.last_used_move(Player.P1))
+        self.assertEqual(battle.p2.last_used_move(), battle.last_used_move(Player.P2))
+
+        self.assertEqual(battle.last_selected_move(Player.P1), 'None')
+        self.assertEqual(battle.last_selected_move(Player.P2), 'None')
+        self.assertEqual(battle.last_used_move(Player.P1), 'None')
+        self.assertEqual(battle.last_used_move(Player.P2), 'None')
+
+        run_first_choice(battle, result)
+        self.assertEqual(battle.p1.last_selected_move(), battle.last_selected_move(Player.P1))
+        self.assertEqual(battle.p2.last_selected_move(), battle.last_selected_move(Player.P2))
+        self.assertEqual(battle.p1.last_used_move(), battle.last_used_move(Player.P1))
+        self.assertEqual(battle.p2.last_used_move(), battle.last_used_move(Player.P2))
+
+        # TODO: create a case were last selected and last used are different
+        # optimization: put moves in an enum to remove dict lookups?
+        self.assertEqual(battle.last_selected_move(Player.P1), 'Swords Dance')
+        self.assertEqual(battle.last_selected_move(Player.P2), 'Amnesia')
+        self.assertEqual(battle.last_used_move(Player.P1), 'Swords Dance')
+        self.assertEqual(battle.last_used_move(Player.P2), 'Amnesia')
+
+        battle.set_last_used_move(Player.P1, 'Thunderbolt')
+        self.assertEqual(battle.last_used_move(Player.P1), 'Thunderbolt')
+        battle.set_last_selected_move(Player.P2, 'Gust')
+        self.assertEqual(battle.last_selected_move(Player.P2), 'Gust')
+
