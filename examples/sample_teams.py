@@ -1,7 +1,6 @@
 """Test script."""
 from pykmn.engine.gen1 import Battle, Side, Player, Choice
 from pykmn.engine.common import ResultType
-from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.protocol import parse_protocol
 
 
@@ -44,7 +43,7 @@ def run_battle(log=False):
     battle = Battle(
         Side.new(team1),
         Side.new(team2),
-        rng=ShowdownRNG(0),
+        rng_seed=0,
     )
     # slots = ([p.name for p in team1], [p.name for p in team2])
 

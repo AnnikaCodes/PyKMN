@@ -711,23 +711,13 @@ def _pack_stats(stats: Gen1StatData) -> Bits:
     return bits
 
 
-def _pack_move_indexes(p1: int, p2: int) -> List[Bits]:
-    """
-    Pack the move indexes into a bitstring.
+# TODO: consider getting rid of the SideInitializer/PokemonInitializer and just
+# supply arguments to the Battle constructor.
 
-    Use the Battle() constructor instead.
-    """
-    length = 16  # TODO: support non -Dshowdown here
-    return Bits().join([
-        Bits(uintne=p1, length=length),
-        Bits(uintne=p2, length=length),
-    ])
-
+# Optimization: remove debug asserts
 
 class Battle:
     """A Generation I Pokémon battle."""
-
-    _bits: Bits | None
 
     def __init__(
         self,
@@ -738,31 +728,61 @@ class Battle:
         p1_move_idx: int = 0,
         p2_move_idx: int = 0,
         # TODO: support non-Showdown RNGs
-        rng: ShowdownRNG = ShowdownRNG(random.randrange(0, 2**64)),
+        rng_seed: int = random.randrange(0, 2**64),
     ):
         """Create a new Battle object."""
-        # TODO: unit tests!
-        # TODO: verify initial values
-        # OK, let's initialize a battle.
-        # https://github.com/pkmn/engine/blob/main/src/data/layout.json gives us the layout.
-        # https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L40-L48 also
-        battle_data = Bits().join([
-            Bits(bytes(p1_side._bytes)),                    # side 1
-            Bits(bytes(p2_side._bytes)),                    # side 2
-            Bits(uintne=start_turn, length=16),             # turn
-            Bits(uintne=last_damage, length=16),            # last damage
-            _pack_move_indexes(p1_move_idx, p2_move_idx),   # move indices
-            rng._to_bits(),                                 # rng
-        ])
-        # gbattle_data.ad
-        assert battle_data.length == (lib.PKMN_GEN1_BATTLE_SIZE * 8), (
-            f"The battle data should be {lib.PKMN_GEN1_BATTLE_SIZE * 8} bits long, "
-            f"but it's {battle_data.length} bits long."
+        self.p1_side = p1_side
+        self.p2_side = p2_side
+
+        self._pkmn_battle = ffi.new("pkmn_gen1_battle *")
+
+        offset = LAYOUT_OFFSETS['Battle']['sides']
+        self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])] = p1_side._bytes
+        offset += LAYOUT_SIZES['Side']
+        self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])] = p2_side._bytes
+        offset += LAYOUT_SIZES['Side']
+        assert offset == LAYOUT_OFFSETS['Battle']['turn']
+
+        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(start_turn)
+        offset += 2
+        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(last_damage)
+        offset += 2
+
+        # TODO: support non -Dshowdown here
+        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p1_move_idx)
+        offset += 2
+        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p2_move_idx)
+        offset += 2
+
+        # TODO: directly initialize RNG here
+        self.rng = ShowdownRNG(ffi.cast(
+            "pkmn_psrng *",
+            self._pkmn_battle.bytes[offset:(offset + lib.PKMN_PSRNG_SIZE)],
+        ), rng_seed)
+
+    def turn(self) -> int:
+        """Get the current turn."""
+        offset = LAYOUT_OFFSETS['Battle']['turn']
+        return unpack_u16_from_bytes(
+            self._pkmn_battle.bytes[offset],
+            self._pkmn_battle.bytes[offset + 1],
         )
-        # uintne == unsigned integer, native endian
-        self._pkmn_battle = ffi.new("pkmn_gen1_battle*")
-        self._pkmn_battle.bytes = battle_data.tobytes()
-        self._bits = battle_data
+
+    def last_damage(self) -> int:
+        """Get the last damage dealt."""
+        offset = LAYOUT_OFFSETS['Battle']['last_damage']
+        return unpack_u16_from_bytes(
+            self._pkmn_battle.bytes[offset],
+            self._pkmn_battle.bytes[offset + 1],
+        )
+
+    def last_used_move(self, player: Player) -> int:
+        """Get the index of the last move used by a player."""
+        offset = LAYOUT_OFFSETS['Battle']['last_selected_indexes'] + player.value
+        return unpack_u16_from_bytes(
+            self._pkmn_battle.bytes[offset],
+            self._pkmn_battle.bytes[offset + 1],
+        )
 
     def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
