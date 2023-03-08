@@ -145,7 +145,7 @@ ExtraPokemonData = TypedDict('ExtraPokemonData', {
     'types': Tuple[str, str], 'move_pp': Tuple[int, int, int, int],
     'dvs': Gen1StatData, 'exp': Gen1StatData,
 }, total=False)
-PokemonInitializer = Tuple[SpeciesName, Moveset] | Tuple[SpeciesName, Moveset, ExtraPokemonData]
+PokemonData = Tuple[SpeciesName, Moveset] | Tuple[SpeciesName, Moveset, ExtraPokemonData]
 
 # TODO: make all these classes simple wrappers around binary and have staticmethods to generate them
 class Pokemon:
@@ -154,29 +154,20 @@ class Pokemon:
     def __init__(self, _bytes):
         """Construct a new Pokemon object.
 
-        Users shouldn't use this, but instead use Pokemon.new() and Pokemon.initialize(),
-        or invoke a Battle/Side constructor directly.
+        Users shouldn't use this, but instead use the Battle constructor.
         """
         assert len(_bytes) == LAYOUT_SIZES['Pokemon'], \
             f"Pokemon data bytes must be {LAYOUT_SIZES['Pokemon']} long."
         self._bytes = _bytes
 
-
-    @staticmethod
-    def new(initial_data: PokemonInitializer):
-        """Creates a new Pokémon and initializes it."""
-        p = Pokemon(_bytes=ffi.new("uint8_t[]", LAYOUT_SIZES['Pokemon']))
-        p.initialize(initial_data)
-        return p
-
-    def initialize(self, data: PokemonInitializer):
+    def initialize(self, data: PokemonData):
         """Initializes the Pokémon's data, overwriting its data buffer with new values.
 
         Stats, types, and move PP are inferred based on the provided species and move names,
         but can optionally be specified.
 
         Args:
-            data (PokemonInitializer): The data to initialize the Pokémon with.
+            data (PokemonData): The data to initialize the Pokémon with.
                 The first value should be the species name,
                 and the second value should be a Moveset with the Pokémon's moves.
                 Optionally, a third value can be specified,
@@ -205,6 +196,8 @@ class Pokemon:
         if len(data) == 3:
             species_name, move_names, extra_data = \
                 cast(Tuple[SpeciesName, Moveset, ExtraPokemonData], data)
+            # possible optimization: is it faster to pass this as an array/extra parameters
+            # and avoid dict lookups?
             if 'hp' in extra_data:
                 hp = extra_data['hp']
             if 'status' in extra_data:
@@ -629,18 +622,13 @@ class Volatiles:
 #         self.moveslots = moveslots
 
 
-SideInitializerDict = TypedDict('SideInitializerDict', {
-    'team': List[PokemonInitializer], 'last_selected_move': str, 'last_used_move': str,
-})
-SideInitializer = List[PokemonInitializer] | SideInitializerDict
 class Side:
     """A side in a Generation I battle."""
 
     def __init__(self, _bytes):
         """Construct a new Side object.
 
-        Users shouldn't use this, but instead use Side.new() and Sude.initialize(),
-        or invoke a Battle constructor directly.
+        Users shouldn't use this, but instead use the Battle constructor.
         """
         self._bytes = _bytes
         team = []
@@ -651,39 +639,31 @@ class Side:
         assert offset == LAYOUT_OFFSETS['Side']['active']
         self.team = tuple(team)
 
-    @staticmethod
-    def new(data: SideInitializer):
-        """Creates a new Side and initializes it."""
-        side = Side(_bytes=ffi.new("uint8_t[]", LAYOUT_SIZES['Side']))
-        side.initialize(data)
-        return side
-
-    def initialize(self, data: SideInitializer):
-        """Initializes the side.
+    def initialize(
+        self,
+        team: List[PokemonData],
+        last_selected_move: str = 'None',
+        last_used_move: str = 'None'
+    ):
+        """Initializes the side with fresh data.
 
         Args:
-            data (SideInitializer): Either a list of PokemonInitializers or a dictionary. TODO: docs
+            team (List[PokemonData]): Must be <= 6.
+            last_selected_move (str, optional): Name of the last move selected. Defaults to 'None'.
+            last_used_move (str, optional): Name of the last move used. Defaults to 'None'.
         """
-        if isinstance(data, dict):
-            data_dict = cast(SideInitializerDict, data)
-            if 'last_selected_move' in data_dict:
-                self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']] = \
-                   MOVE_IDS[data_dict['last_selected_move']]
-            if 'last_used_move' in data:
-                self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']] = \
-                    MOVE_IDS[data_dict['last_used_move']]
-            team = data_dict['team']
-        else:
-            team = cast(List[PokemonInitializer], data)
+        self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']] = MOVE_IDS[last_selected_move]
+        self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']] = MOVE_IDS[last_used_move]
 
         order = []
+        # optimization: is enumerate() slow?
+        assert len(team) <= 6
         for i, pokemon_data in enumerate(team):
             self.team[i].initialize(pokemon_data)
             order.append(i + 1)
 
         for i, slot in enumerate(order):
             self._bytes[LAYOUT_OFFSETS['Side']['order'] + i] = slot
-
 
     def last_used_move(self) -> str:
         """Gets the last move used by the side."""
@@ -711,7 +691,7 @@ def _pack_stats(stats: Gen1StatData) -> Bits:
     return bits
 
 
-# TODO: consider getting rid of the SideInitializer/PokemonInitializer and just
+# TODO: consider getting rid of the SideInitializer/PokemonData and just
 # supply arguments to the Battle constructor.
 
 # Optimization: remove debug asserts
@@ -721,8 +701,12 @@ class Battle:
 
     def __init__(
         self,
-        p1_side: Side,
-        p2_side: Side,
+        p1_team: List[PokemonData],
+        p2_team: List[PokemonData],
+        p1_last_selected_move: str = 'None',
+        p1_last_used_move: str = 'None',
+        p2_last_selected_move: str = 'None',
+        p2_last_used_move: str = 'None',
         start_turn: int = 0,
         last_damage: int = 0,
         p1_move_idx: int = 0,
@@ -731,15 +715,15 @@ class Battle:
         rng_seed: int = random.randrange(0, 2**64),
     ):
         """Create a new Battle object."""
-        self.p1_side = p1_side
-        self.p2_side = p2_side
-
         self._pkmn_battle = ffi.new("pkmn_gen1_battle *")
 
         offset = LAYOUT_OFFSETS['Battle']['sides']
-        self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])] = p1_side._bytes
+        self.p1_side = Side(self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])])
+        self.p1_side.initialize(p1_team, p1_last_selected_move, p1_last_used_move)
         offset += LAYOUT_SIZES['Side']
-        self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])] = p2_side._bytes
+
+        self.p2_side = Side(self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])])
+        self.p2_side.initialize(p2_team, p2_last_selected_move, p2_last_used_move)
         offset += LAYOUT_SIZES['Side']
         assert offset == LAYOUT_OFFSETS['Battle']['turn']
 

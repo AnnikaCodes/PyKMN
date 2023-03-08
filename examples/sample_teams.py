@@ -1,9 +1,9 @@
 """Test script."""
-from pykmn.engine.gen1 import Battle, Side, Player, Choice
+from pykmn.engine.gen1 import Battle, Player, Choice
 from pykmn.engine.common import ResultType
 from pykmn.engine.protocol import parse_protocol
 
-
+import random
 
 def hexfmt(b):
     """Format bytes as hex."""
@@ -41,8 +41,8 @@ team2 = [
 def run_battle(log=False):
     """Run a battle. Returns # of turns."""
     battle = Battle(
-        Side.new(team1),
-        Side.new(team2),
+        p1_team=team1,
+        p2_team=team2,
         rng_seed=0,
     )
     # slots = ([p.name for p in team1], [p.name for p in team2])
@@ -59,8 +59,8 @@ def run_battle(log=False):
         if log:
             print(f"\n------------ Choice {choice} ------------")
         choice += 1
-        p1_choice = battle.possible_choices(Player.P1, result).pop()
-        p2_choice = battle.possible_choices(Player.P2, result).pop()
+        p1_choice = random.choice(battle.possible_choices(Player.P1, result))
+        p2_choice = random.choice(battle.possible_choices(Player.P2, result))
         if log:
             print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
         (result, trace) = battle.update(p1_choice, p2_choice)
