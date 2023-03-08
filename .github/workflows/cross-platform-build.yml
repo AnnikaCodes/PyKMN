@@ -21,8 +21,8 @@ jobs:
         # unit tests already run on Ubuntu
         # Windows builds are currently disabled due to a bug with the build
         # I *think* it's an upstream issue, but I'm not 100% sure
-        os: [macos-latest] # [windows-latest, macos-latest] 
-        
+        os: [macos-latest] # [windows-latest, macos-latest]
+
 
     steps:
     - uses: actions/checkout@v3
@@ -57,6 +57,6 @@ jobs:
       if: ${{ matrix.os != 'windows-latest' }} # this doesn't work on Windows
       run: |
         echo "from pykmn.engine import rng
-        print(rng.ShowdownRNG(35).next())" | python3
+        print(rng.ShowdownRNG.from_seed(35).next())" | python3
       # use a different working directory so that Python sees the installed wheel
       working-directory: engine
