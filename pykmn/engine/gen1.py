@@ -6,10 +6,10 @@ from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import List, Tuple, cast, TypedDict
-import random
+from typing import List, Tuple, cast, TypedDict, Literal
 from enum import Enum
 import math
+import random
 
 # optimization possible here: don't copy in intialization if it's all 0 anyway?
 # optimization possible: use indices for LAYOUT_* instead of dict keys
@@ -449,6 +449,8 @@ class Side:
 
 # Optimization: remove debug asserts
 
+PokemonSlot = Literal[1] | Literal[2] | Literal[3] | Literal[4] | Literal[5] | Literal[6]
+
 class Battle:
     """A Generation I Pokémon battle."""
 
@@ -577,6 +579,27 @@ class Battle:
             self._pkmn_battle.bytes[offset],
             self._pkmn_battle.bytes[offset + 1],
         )
+
+    def current_hp(self, player: Player, pokemon: PokemonSlot) -> int:
+        """Get the current HP of a Pokémon."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['pokemon'] + \
+            LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
+            LAYOUT_OFFSETS['Pokemon']['hp']
+        return unpack_u16_from_bytes(
+            self._pkmn_battle.bytes[offset],
+            self._pkmn_battle.bytes[offset + 1],
+        )
+
+    def set_current_hp(self, player: Player, pokemon: PokemonSlot, hp: int) -> None:
+        """Set the current HP of a Pokémon."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['pokemon'] + \
+            LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
+            LAYOUT_OFFSETS['Pokemon']['hp']
+        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(hp)
 
     def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
