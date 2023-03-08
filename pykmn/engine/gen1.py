@@ -12,6 +12,7 @@ from enum import Enum
 import math
 
 # optimization possible here: don't copy in intialization if it's all 0 anyway?
+# optimization possible: use indices for LAYOUT_* instead of dict keys
 
 MovePP = Tuple[str, int]
 FullMoveset = Tuple[str, str, str, str]
@@ -431,6 +432,18 @@ class Side:
         """Gets the last move selected by the side."""
         return MOVE_ID_LOOKUP[self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']]]
 
+    def active_pokemon_stats(self) -> Gen1StatData:
+        """Gets the stats of the active Pokémon on this side."""
+        offset = LAYOUT_OFFSETS['Side']['active']
+        stats = {}
+        for stat in ['hp', 'atk', 'def', 'spe', 'spc']:
+            stats[stat] = unpack_u16_from_bytes(
+                self._bytes[offset],
+                self._bytes[offset + 1]
+            )
+            offset += 2
+        return cast(Gen1StatData, stats)
+
 # TODO: consider getting rid of the SideInitializer/PokemonData and just
 # supply arguments to the Battle constructor.
 
@@ -458,12 +471,12 @@ class Battle:
         self._pkmn_battle = ffi.new("pkmn_gen1_battle *")
 
         offset = LAYOUT_OFFSETS['Battle']['sides']
-        self.p1_side = Side(self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])])
-        self.p1_side.initialize(p1_team, p1_last_selected_move, p1_last_used_move)
+        self.p1 = Side(self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])])
+        self.p1.initialize(p1_team, p1_last_selected_move, p1_last_used_move)
         offset += LAYOUT_SIZES['Side']
 
-        self.p2_side = Side(self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])])
-        self.p2_side.initialize(p2_team, p2_last_selected_move, p2_last_used_move)
+        self.p2 = Side(self._pkmn_battle.bytes[offset:(offset + LAYOUT_SIZES['Side'])])
+        self.p2.initialize(p2_team, p2_last_selected_move, p2_last_used_move)
         offset += LAYOUT_SIZES['Side']
         assert offset == LAYOUT_OFFSETS['Battle']['turn']
 
