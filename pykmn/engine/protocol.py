@@ -334,7 +334,7 @@ HANDLERS = [
     status_parser('Status'),
     status_parser('CureStatus'),
     boost_handler,
-    returner('|-clearallboost'),
+    returner('|-clearallboost|[silent]'),
     fail_handler,
     generic_message_parser('-miss'),
     hitcount_handler,

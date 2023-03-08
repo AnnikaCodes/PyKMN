@@ -252,7 +252,7 @@ class TestProtocolParsing(unittest.TestCase):
 
     def test_clearallboost(self):
         """Should parse a |-clearallboost| message."""
-        self.case([MESSAGES.index('ClearAllBoost')], ["|-clearallboost"])
+        self.case([MESSAGES.index('ClearAllBoost')], ["|-clearallboost|[silent]"])
 
     def test_fail(self):
         """Should parse a |-fail| message."""
