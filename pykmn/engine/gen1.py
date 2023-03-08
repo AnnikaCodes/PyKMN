@@ -3,7 +3,7 @@ from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
     pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s # noqa: F401
 from pykmn.engine.rng import ShowdownRNG
-from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
+from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
 from typing import List, Tuple, cast, TypedDict
@@ -522,6 +522,34 @@ class Battle:
             LAYOUT_SIZES['Side'] * player.value + \
             LAYOUT_OFFSETS['Side']['last_used_move']
         self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
+
+    def active_pokemon_stats(self, player: Player) -> Gen1StatData:
+        """Get the stats of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['stats']
+        stats = {}
+        for stat in ['hp', 'atk', 'def', 'spe', 'spc']:
+            stats[stat] = unpack_u16_from_bytes(
+                self._pkmn_battle.bytes[offset],
+                self._pkmn_battle.bytes[offset + 1],
+            )
+            offset += 2
+        return cast(Gen1StatData, stats)
+
+    def set_active_pokemon_stats(self, player: Player, stats: PartialGen1StatData) -> None:
+        """Set the stats of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['stats']
+
+        for stat in ['hp', 'atk', 'def', 'spe', 'spc']:
+            if stat in stats:
+                self._pkmn_battle.bytes[offset:(offset + 2)] = \
+                    pack_u16_as_bytes(stats[stat]) # type: ignore
+            offset += 2
 
     def turn(self) -> int:
         """Get the current turn."""

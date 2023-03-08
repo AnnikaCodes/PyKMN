@@ -18,6 +18,11 @@ Gen1StatData = TypedDict(
     'Gen1StatData',
     {'hp': int, 'atk': int, 'def': int, 'spe': int, 'spc': int},
 )
+PartialGen1StatData = TypedDict(
+    'PartialGen1StatData',
+    {'hp': int, 'atk': int, 'def': int, 'spe': int, 'spc': int},
+    total=False,
+)
 Gen1SpeciesData = TypedDict('Gen1SpeciesData', {'stats': Gen1StatData, 'types': List[str]})
 
 Gen2StatData = TypedDict(
