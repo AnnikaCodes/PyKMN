@@ -27,11 +27,10 @@ class TestGen1Side(unittest.TestCase):
         for length in range(1, 7):
             for _ in range(10):
                 random_moves = tuple(random.choices(list(MOVES.keys()), k=4))
-                # TODO: Simplify types here so they suck less
                 pkmn: List[PokemonData] = tuple(
                     ((random.choice(list(SPECIES.keys())), random_moves)) \
                         for _ in range(length)
-                ) # type: ignore # TODO: should we avoid tuples & do a list + len() check instead?
+                ) # type: ignore
                 side = new_side(pkmn)
                 for idx, pkmn in enumerate(pkmn):
                     self.assertEqual(side.team[idx].species(), pkmn[0])

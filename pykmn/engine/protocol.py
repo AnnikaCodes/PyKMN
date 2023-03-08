@@ -282,7 +282,7 @@ def start_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]
     i += 2
     msg = f"|-start|{pokemon}"
 
-    # TODO: hardcode indcies for perf gain?
+    # optimization: hardcode indcies for perf gain?
     msg += START_REASONS[reason]
     if reason == START_TYPECHANGE_REASON:
         # types_byte has two types in each of its 4-bit halves

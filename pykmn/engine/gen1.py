@@ -117,7 +117,6 @@ ExtraPokemonData = TypedDict('ExtraPokemonData', {
 }, total=False)
 PokemonData = Tuple[SpeciesName, Moveset] | Tuple[SpeciesName, Moveset, ExtraPokemonData]
 
-# TODO: make all these classes simple wrappers around binary and have staticmethods to generate them
 class Pokemon:
     """A Pokémon in a Generation I battle."""
 
@@ -333,7 +332,6 @@ class Pokemon:
         (byte1, byte2) = self._bytes[offset:offset + 2]
         return unpack_u16_from_bytes(byte1, byte2)
 
-    # TODO: good status parsing
     def status(self) -> int:
         """Get the Pokémon's status.
 
@@ -373,12 +371,17 @@ class Pokemon:
 
 
 # MAJOR TODO!
+# * remove subclasses and put everything into the Battle class for s p e e d
 # * incorporate ActivePokemon stuff into Battle methods
 #   https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L99-L105
 # * properly handle status
 # * write unit tests
 # * make all constructors check array lengths, etc, for validity
 # * write a LOT of integration tests
+# * add support for toggling -Dshowdown & -Dtrace
+#    * support non-Showdown RNG
+# * investigate performance and optimize
+# * simplify typing as needed
 # * maybe more documentation?
 
 class Side:
@@ -444,9 +447,6 @@ class Side:
             offset += 2
         return cast(Gen1StatData, stats)
 
-# TODO: consider getting rid of the SideInitializer/PokemonData and just
-# supply arguments to the Battle constructor.
-
 # Optimization: remove debug asserts
 
 class Battle:
@@ -464,7 +464,6 @@ class Battle:
         last_damage: int = 0,
         p1_move_idx: int = 0,
         p2_move_idx: int = 0,
-        # TODO: support non-Showdown RNGs
         rng_seed: int = random.randrange(0, 2**64),
     ):
         """Create a new Battle object."""
@@ -491,7 +490,6 @@ class Battle:
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p2_move_idx)
         offset += 2
 
-        # TODO: directly initialize RNG here
         self.rng = ShowdownRNG(ffi.cast(
             "pkmn_psrng *",
             self._pkmn_battle.bytes[offset:(offset + lib.PKMN_PSRNG_SIZE)],
@@ -531,7 +529,6 @@ class Battle:
             Tuple[Result, List[int]]: The result of the choice,
             and the trace as a list of protocol bytes
         """
-        # TODO: protocol parser?
         trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOG_SIZE)
         _pkmn_result = lib.pkmn_gen1_battle_update(
             self._pkmn_battle,          # pkmn_gen1_battle *battle
@@ -576,7 +573,7 @@ class Battle:
         num_choices = lib.pkmn_gen1_battle_choices(
             self._pkmn_battle,      # pkmn_gen1_battle *battle
             player.value,           # pkmn_player player
-            # TODO: is IntEnum more performant?
+            # optimization: is IntEnum more performant?
             requested_kind.value,   # pkmn_choice_kind request
             raw_choices,            # pkmn_choice out[]
             lib.PKMN_OPTIONS_SIZE,  # size_t len

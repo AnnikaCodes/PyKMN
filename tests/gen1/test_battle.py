@@ -29,7 +29,6 @@ class TestBattle(unittest.TestCase):
             attack_stats_battle.p1.team[0].stats(),
         )
 
-        # TODO: Should we store the result in the battle object? probably?
         run_first_choice(attack_stats_battle, result)
         p1_active_stats = attack_stats_battle.p1.active_pokemon_stats()
         p1_original_stats = attack_stats_battle.p1.team[0].stats()
