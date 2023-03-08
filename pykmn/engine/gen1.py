@@ -7,7 +7,6 @@ from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
 from typing import List, Tuple, cast, TypedDict
-from bitstring import Bits  # type: ignore
 import random
 from enum import Enum
 import math
@@ -81,36 +80,6 @@ class Status:
         if self.duration is not None:
             return (0x80 | self.duration) if self.is_self_inflicted else self.duration
         return self.value.value
-
-
-# should this not be a class and just a move-to-int function?
-class Move:
-    """A Pokémon move."""
-
-    def __init__(self, name: str):
-        """Create a new Move object."""
-        if name not in MOVE_IDS:
-            raise ValueError(f"'{name}' is not a valid move in Generation I.")
-        self.name = name
-        self.id = MOVE_IDS[name]
-
-    def _to_bits(self) -> Bits:
-        """Pack the move into a bitstring."""
-        return Bits(uintne=self.id, length=8)
-
-    def _to_slot_bits(self, pp: int | None = None) -> Bits:
-        """Pack the move into a bitstring with PP."""
-        if pp is None:
-            pp = math.trunc(MOVES[self.name] * 8 / 5)
-        return Bits().join([
-            self._to_bits(),
-            Bits(uintne=pp, length=8)
-        ])
-
-    def __repr__(self) -> str:
-        """Return a string representation of the move."""
-        return f"Move({self.name}, id={self.id})"
-
 
 def statcalc(
     base_value: int,
@@ -402,225 +371,14 @@ class Pokemon:
         return self._bytes[offset]
 
 
-def moves(*args):
-    """Convert a list of move names into a list of Move objects."""
-    return [Move(move) for move in args]
-
 # MAJOR TODO!
-# * reverse it so that there are _from_bits() methods as well
+# * incorporate ActivePokemon stuff into Battle methods
+#   https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L99-L105
+# * properly handle status
 # * write unit tests
-# * make this use raw memory and bit twiddling instead of bitstring
-#   * each class's constructor just takes bits and then there's a static method for generation
-#   * getters should actually parse the bits
 # * make all constructors check array lengths, etc, for validity
 # * write a LOT of integration tests
 # * maybe more documentation?
-
-
-class Boosts:
-    """A Pokémon's stat boosts."""
-
-    attack: int
-    defense: int
-    speed: int
-    special: int
-    accuracy: int
-    evasion: int
-
-    def __init__(
-        self,
-        attack: int = 0,
-        defense: int = 0,
-        speed: int = 0,
-        special: int = 0,
-        accuracy: int = 0,
-        evasion: int = 0,
-    ):
-        """Construct a new Boosts object."""
-        self.attack = attack
-        self.defense = defense
-        self.speed = speed
-        self.special = special
-        self.accuracy = accuracy
-        self.evasion = evasion
-
-    def _to_bits(self) -> Bits:
-        """Pack the boosts into a bitstring."""
-        return Bits().join([
-            Bits(int=self.attack, length=4),
-            Bits(int=self.defense, length=4),
-            Bits(int=self.speed, length=4),
-            Bits(int=self.special, length=4),
-            Bits(int=self.accuracy, length=4),
-            Bits(int=self.evasion, length=4),
-            Bits(intne=0, length=8),  # padding
-        ])
-
-
-class Volatiles:
-    """A Pokémon's volatile statuses."""
-
-    Bide: bool
-    Thrashing: bool
-    MultiHit: bool
-    Flinch: bool
-    Charging: bool
-    Binding: bool
-    Invulnerable: bool
-    Confusion: bool
-
-    Mist: bool
-    FocusEnergy: bool
-    Substitute: bool
-    Recharging: bool
-    Rage: bool
-    LeechSeed: bool
-    Toxic: bool
-    LightScreen: bool
-
-    Reflect: bool
-    Transform: bool
-
-    confusion: int
-    attacks: int
-
-    state: int
-    substitute: int
-    transform: int
-    disabled_duration: int
-    disabled_move: int
-    toxic: int
-
-    def __init__(
-        self,
-        Bide: bool = False,
-        Thrashing: bool = False,
-        MultiHit: bool = False,
-        Flinch: bool = False,
-        Charging: bool = False,
-        Binding: bool = False,
-        Invulnerable: bool = False,
-        Confusion: bool = False,
-        Mist: bool = False,
-        FocusEnergy: bool = False,
-        Substitute: bool = False,
-        Recharging: bool = False,
-        Rage: bool = False,
-        LeechSeed: bool = False,
-        Toxic: bool = False,
-        LightScreen: bool = False,
-        Reflect: bool = False,
-        Transform: bool = False,
-        confusion: int = 0,
-        attacks: int = 0,
-        state: int = 0,
-        substitute: int = 0,
-        transform: int = 0,
-        disabled_duration: int = 0,
-        disabled_move: int = 0,
-        toxic: int = 0,
-    ):
-        """Construct a new Volatiles object."""
-        self.Bide = Bide
-        self.Thrashing = Thrashing
-        self.MultiHit = MultiHit
-        self.Flinch = Flinch
-        self.Charging = Charging
-        self.Binding = Binding
-        self.Invulnerable = Invulnerable
-        self.Confusion = Confusion
-        self.Mist = Mist
-        self.FocusEnergy = FocusEnergy
-        self.Substitute = Substitute
-        self.Recharging = Recharging
-        self.Rage = Rage
-        self.LeechSeed = LeechSeed
-        self.Toxic = Toxic
-        self.LightScreen = LightScreen
-        self.Reflect = Reflect
-        self.Transform = Transform
-        self.confusion = confusion
-        self.attacks = attacks
-        self.state = state
-        self.substitute = substitute
-        self.transform = transform
-        self.disabled_duration = disabled_duration
-        self.disabled_move = disabled_move
-        self.toxic = toxic
-
-    def _to_bits(self) -> Bits:
-        """Pack the volatiles into a bitstring."""
-        bits = Bits().join([
-            Bits(bool=self.Bide),
-            Bits(bool=self.Thrashing),
-            Bits(bool=self.MultiHit),
-            Bits(bool=self.Flinch),
-            Bits(bool=self.Charging),
-            Bits(bool=self.Binding),
-            Bits(bool=self.Invulnerable),
-            Bits(bool=self.Confusion),
-            Bits(bool=self.Mist),
-            Bits(bool=self.FocusEnergy),
-            Bits(bool=self.Substitute),
-            Bits(bool=self.Recharging),
-            Bits(bool=self.Rage),
-            Bits(bool=self.LeechSeed),
-            Bits(bool=self.Toxic),
-            Bits(bool=self.LightScreen),
-            Bits(bool=self.Reflect),
-            Bits(bool=self.Transform),
-
-            Bits(uint=self.confusion, length=3),
-            Bits(uint=self.attacks, length=3),
-            Bits(uintne=self.state, length=16),
-            Bits(uintne=self.substitute, length=8),
-            Bits(uint=self.transform, length=4),
-            Bits(uint=self.disabled_duration, length=4),
-            Bits(uint=self.disabled_move, length=3),
-            Bits(uint=self.toxic, length=5),
-        ])
-        assert bits.length == 8 * 8, \
-            f"Volatiles is {bits.length} bits long, but should be 64 bits long."
-        return bits
-
-
-# class ActivePokemon:
-#     """idk anymore."""
-
-#     stats: Gen1StatData
-#     boosts: Boosts
-#     volatiles: Volatiles
-#     # int is the amount of PP they have left
-#     moveslots: List[MoveSlot]
-
-#     def __init__(
-#         self,
-#         name: str,
-#         boosts: Boosts = Boosts(),
-#         volatiles: Volatiles = Volatiles(),
-#         moveslots=[(Move('None'), 0)] * 4,
-#     ):
-#         """Construct a new ActivePokemon object."""
-#         if name not in SPECIES and name != 'None':
-#             raise Exception(f"'{name}' is not a valid Pokémon name in Generation I.")
-
-#         self.stats: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
-#         if name != 'None':
-#             self.types = SPECIES[name]['types']
-#             for stat in SPECIES[name]['stats']:
-#                 self.stats[stat] = statcalc(  # type: ignore
-#                     base_value=SPECIES[name]['stats'][stat],  # type: ignore
-#                     level=level,
-#                     dv=dvs[stat],  # type: ignore
-#                     is_HP=stat == 'hp',
-#                 )
-#         else:
-#             self.types = ['Normal', 'Normal']
-
-#         self.boosts = boosts
-#         self.volatiles = volatiles
-#         self.moveslots = moveslots
-
 
 class Side:
     """A side in a Generation I battle."""
@@ -672,24 +430,6 @@ class Side:
     def last_selected_move(self) -> str:
         """Gets the last move selected by the side."""
         return MOVE_ID_LOOKUP[self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']]]
-
-
-def _pack_stats(stats: Gen1StatData) -> Bits:
-    """
-    Pack the stats into a bitstring.
-
-    Use the Battle() constructor instead.
-    """
-    bits = Bits().join([
-        Bits(uintne=stats['hp'], length=16),
-        Bits(uintne=stats['atk'], length=16),
-        Bits(uintne=stats['def'], length=16),
-        Bits(uintne=stats['spe'], length=16),
-        Bits(uintne=stats['spc'], length=16),
-    ])
-    assert bits.length == 10 * 8, f"Stats length is {bits.length} bits, not {10 * 8} bits."
-    return bits
-
 
 # TODO: consider getting rid of the SideInitializer/PokemonData and just
 # supply arguments to the Battle constructor.
