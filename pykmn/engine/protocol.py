@@ -355,7 +355,7 @@ HANDLERS = [
 def parse_protocol(
     binary_protocol: List[int],
     # https://github.com/python/mypy/issues/5068#issuecomment-389882867
-    slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2  # type: ignore
+    slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2, # type: ignore
 ) -> List[str]:
     """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
 

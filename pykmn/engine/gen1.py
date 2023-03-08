@@ -317,7 +317,7 @@ class Pokemon:
             (byte1, byte2) = self._bytes[offset:offset + 2]
             stats[stat] = unpack_u16_from_bytes(byte1, byte2)
             offset += 2
-        return stats # type: ignore
+        return cast(Gen1StatData, stats)
 
     def moves(self) -> Moveset:
         """
@@ -664,8 +664,18 @@ class Side:
         Args:
             data (SideInitializer): Either a list of PokemonInitializers or a dictionary. TODO: docs
         """
-        is_dict = isinstance(data, dict)
-        team = data['team'] if is_dict else data # type: ignore
+        if isinstance(data, dict):
+            data_dict = cast(SideInitializerDict, data)
+            if 'last_selected_move' in data_dict:
+                self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']] = \
+                   MOVE_IDS[data_dict['last_selected_move']]
+            if 'last_used_move' in data:
+                self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']] = \
+                    MOVE_IDS[data_dict['last_used_move']]
+            team = data_dict['team']
+        else:
+            team = cast(List[PokemonInitializer], data)
+
         order = []
         for i, pokemon_data in enumerate(team):
             self.team[i].initialize(pokemon_data)
@@ -674,13 +684,6 @@ class Side:
         for i, slot in enumerate(order):
             self._bytes[LAYOUT_OFFSETS['Side']['order'] + i] = slot
 
-        if is_dict:
-            if 'last_selected_move' in data:
-                self._bytes[LAYOUT_OFFSETS['Side']['last_selected_move']] = \
-                   MOVE_IDS[data['last_selected_move']] # type: ignore
-            if 'last_used_move' in data:
-                self._bytes[LAYOUT_OFFSETS['Side']['last_used_move']] = \
-                    MOVE_IDS[data['last_used_move']] # type: ignore
 
     def last_used_move(self) -> str:
         """Gets the last move used by the side."""
