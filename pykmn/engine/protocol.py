@@ -287,10 +287,11 @@ def start_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]
     if reason == START_TYPECHANGE_REASON:
         # types_byte has two types in each of its 4-bit halves
         types_byte = binary_protocol[i]
-        i += 1
         type1 = TYPES[types_byte >> 4]
         type2 = TYPES[types_byte & 0xF]
-        msg += f"|typechange|{type1}/{type2}|[from] move: Conversion|[of]"
+        target = parse_identifier(binary_protocol[i + 1], slots)
+        i += 2
+        msg += f"|typechange|{type1}/{type2}|[from] move: Conversion|[of] {target}"
     elif reason >= START_ADDMOVE_MIN_REASON:
         msg += parse_move(binary_protocol[i])
         i += 1

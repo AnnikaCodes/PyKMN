@@ -387,8 +387,11 @@ class TestProtocolParsing(unittest.TestCase):
         )
         self.case([
             MESSAGES.index('Start'), 4, REASONS['Start'].index('TypeChange'),
-            (TYPES.index('Fire') << 4) + TYPES.index('Electric'),
-        ], ["|-start|p1a: Pokémon #4|typechange|Fire/Electric|[from] move: Conversion|[of]"])
+            (TYPES.index('Fire') << 4) + TYPES.index('Electric'), 9
+        ], [
+            "|-start|p1a: Pokémon #4|typechange|Fire/Electric|" +
+            "[from] move: Conversion|[of] p2a: Pokémon #1"
+        ])
         self.case(
             [
                 MESSAGES.index('Start'), 4, REASONS['Start'].index('Disable'),
