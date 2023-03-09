@@ -2,6 +2,7 @@
 
 import unittest
 from pykmn.engine.gen1 import Battle, Choice, Player, Result
+from pykmn.data.gen1 import Gen1StatData
 # from pykmn.engine.protocol import parse_protocol
 
 def run_first_choice(battle: Battle, result: Result) -> Result:
@@ -109,4 +110,137 @@ class TestBattleData(unittest.TestCase):
         run_first_choice(battle, result)
         self.assertLess(battle.current_hp(Player.P2, 1), 200)
         self.assertLess(battle.current_hp(Player.P1, 1), initial_hp)
+
+    def test_turn(self) -> None:
+        """Test turn storage."""
+        battle = Battle([('Mew', ('Swords Dance', 'Surf'))], [('Mew', ('Amnesia', 'Fly'))])
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+
+        self.assertEqual(battle.turn(), 1)
+        run_first_choice(battle, result)
+        self.assertEqual(battle.turn(), 2)
+
+        battle.set_turn(5)
+        self.assertEqual(battle.turn(), 5)
+
+    def test_last_damage(self) -> None:
+        """Test last damage variable."""
+        battle = Battle(
+            p1_team=[('Mew', ('Amnesia', ))],
+            p2_team=[('Mew', ('Surf', ))],
+            rng_seed=0
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+        self.assertEqual(battle.last_damage(), 0)
+
+        run_first_choice(battle, result)
+        self.assertEqual(battle.last_damage(), 134)
+
+        battle.set_last_damage(65)
+        self.assertEqual(battle.last_damage(), 65)
+
+    def test_stats(self) -> None:
+        """Tests that the stats are stored/loaded correctly."""
+        stats: Gen1StatData = {'hp': 582, 'atk': 92, 'def': 312, 'spe': 484, 'spc': 831}
+        battle = Battle(
+            p1_team=[('Bulbasaur', ('Tackle',)), ('Mew', ('Amnesia', ), {'stats': stats})],
+            p2_team=[('Mew', ('Surf', ))],
+        )
+        self.assertDictEqual(battle.stats(Player.P1, 2), stats)
+        self.assertDictEqual(battle.stats(Player.P1, 2), battle.p1.team[1].stats())
+        self.assertDictEqual(battle.stats(Player.P2, 1), battle.p2.team[0].stats())
+
+        battle.set_stats(Player.P1, 2, {'hp': 89, 'atk': 35, 'spe': 12})
+        self.assertDictEqual(
+            battle.stats(Player.P1, 2),
+            {'hp': 89, 'atk': 35, 'def': stats['def'], 'spe': 12, 'spc': stats['spc']},
+        )
+
+    def test_moves(self) -> None:
+        """Tests that the moves are stored/loaded correctly."""
+        battle = Battle(
+            p1_team=[('Mew', ('Amnesia', 'Surf', 'Thunderbolt', 'Fly'))],
+            p2_team=[('Mew', ('Surf', 'Hyper Beam'), {'move_pp': (28, 63, 0, 0)})],
+        )
+        self.assertTupleEqual(battle.moves(Player.P1, 1), ('Amnesia', 'Surf', 'Thunderbolt', 'Fly'))
+        self.assertTupleEqual(battle.moves(Player.P2, 1), ('Surf', 'Hyper Beam'))
+        self.assertTupleEqual(battle.pp_left(Player.P2, 1), (28, 63))
+        self.assertTupleEqual(
+            battle.moves_with_pp(Player.P2, 1),
+            (('Surf', 28), ('Hyper Beam', 63)),
+        )
+
+        battle.set_moves(Player.P1, 1, (
+            ('Flash', 10), ('High Jump Kick', 15), ('None', 0), ('None', 0),
+        ))
+        self.assertTupleEqual(battle.moves(Player.P1, 1), ('Flash', 'High Jump Kick'))
+        self.assertTupleEqual(battle.pp_left(Player.P1, 1), (10, 15))
+        self.assertTupleEqual(
+            battle.moves_with_pp(Player.P1, pokemon=1),
+            (('Flash', 10), ('High Jump Kick', 15))
+        )
+
+    def test_status(self) -> None:
+        """Tests that the status is stored/loaded correctly."""
+        battle = Battle(
+            p1_team=[('Muk', ('Toxic', ))],
+            p2_team=[('Mew', ('Tackle', ))],
+            rng_seed=0,
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+        self.assertEqual(battle.status(Player.P1, 1), 0)
+        self.assertEqual(battle.status(Player.P2, 1), 0)
+
+        run_first_choice(battle, result)
+        self.assertEqual(battle.status(Player.P2, 1), 8) # Toxic
+        self.assertEqual(battle.status(Player.P1, 1), 0) # No status
+
+        battle.set_status(Player.P1, 1, 32)
+        self.assertEqual(battle.status(Player.P1, 1), 32)
+        self.assertEqual(battle.status(Player.P2, 1), 8)
+
+    def test_species(self) -> None:
+        """Tests that the species is stored/loaded correctly."""
+        battle = Battle(
+            p1_team=[('Mew', ('Amnesia', ))],
+            p2_team=[('Blastoise', ('Surf', ))],
+        )
+        self.assertEqual(battle.species(Player.P1, 1), 'Mew')
+        self.assertEqual(battle.species(Player.P2, 1), 'Blastoise')
+
+        battle.set_species(Player.P2, 1, 'Eevee')
+        self.assertEqual(battle.species(Player.P1, 1), 'Mew')
+        self.assertEqual(battle.species(Player.P2, 1), 'Eevee')
+
+    def test_types(self) -> None:
+        """Tests that the types are stored/loaded correctly."""
+        battle = Battle(
+            p1_team=[('Charizard', ('Ember', ))],
+            p2_team=[('Ditto', ('Transform', ))],
+        )
+        self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
+        self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
+
+        # TODO: active pokemon stuff
+        # run_first_choice(battle, battle.update(Choice.PASS(), Choice.PASS())[0])
+        # self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
+        # self.assertTupleEqual(battle.active_pokemon_type(), ('Fire', 'Flying'))
+
+        battle.set_types(Player.P2, 1, ('Grass', 'Poison'))
+        self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
+        self.assertTupleEqual(battle.types(Player.P2, 1), ('Grass', 'Poison'))
+
+    def test_level(self) -> None:
+        battle = Battle([("Mew", ("Amnesia", ))], [("Mew", ("Surf", ), {'level': 47})])
+        self.assertEqual(battle.level(Player.P1, 1), 100)
+        self.assertEqual(battle.level(Player.P2, 1), 47)
+
+        battle.set_level(Player.P1, 1, 12)
+        self.assertEqual(battle.level(Player.P1, 1), 12)
+        self.assertEqual(battle.level(Player.P2, 1), 47)
+
+        battle.set_level(Player.P2, 1, 87)
+        self.assertEqual(battle.level(Player.P1, 1), 12)
+        self.assertEqual(battle.level(Player.P2, 1), 87)
+
 
