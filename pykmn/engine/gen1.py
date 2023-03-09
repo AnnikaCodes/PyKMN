@@ -611,13 +611,13 @@ class Battle:
             Tuple[Result, List[int]]: The result of the choice,
             and the trace as a list of protocol bytes
         """
-        trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOG_SIZE)
+        trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOGS_SIZE)
         _pkmn_result = lib.pkmn_gen1_battle_update(
             self._pkmn_battle,          # pkmn_gen1_battle *battle
             p1_choice._pkmn_choice,     # pkmn_choice c1
             p2_choice._pkmn_choice,     # pkmn_choice c2
             trace_buf,                  # uint8_t *buf
-            lib.PKMN_GEN1_LOG_SIZE,     # size_t len
+            lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
         )
 
         result = Result(_pkmn_result)
