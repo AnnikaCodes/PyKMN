@@ -38,7 +38,7 @@ class TestGen1Pokemon(unittest.TestCase):
         for length in range(1, 5):
             for _ in range(10):
                 moves = tuple(random.choices(list(MOVES.keys()), k=length))
-                pp = tuple(MOVES[moves[n]] * 8 / 5 for n in range(length))
+                pp = tuple(min(MOVES[moves[n]] * 8 / 5, 61) for n in range(length))
                 pkmn = new_pokemon(('Mew', moves))
                 self.assertTupleEqual(pkmn.moves(), moves)
                 self.assertTupleEqual(pkmn.pp_left(), pp)

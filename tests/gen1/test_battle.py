@@ -243,4 +243,11 @@ class TestBattleData(unittest.TestCase):
         self.assertEqual(battle.level(Player.P1, 1), 12)
         self.assertEqual(battle.level(Player.P2, 1), 87)
 
+    def test_40pp_moves(self) -> None:
+        """Moves with 40 PP should have 61 after PP Ups."""
+        # https://github.com/pkmn/engine/blob/main/src/lib/gen1/helpers.zig#L145
+        battle = Battle([('Bulbasaur', ('Growth', ))], [('Grimer', ('Poison Gas', ))])
+        self.assertEqual(battle.pp_left(Player.P1, 1), (61, ))
+        self.assertEqual(battle.pp_left(Player.P2, 1), (61, ))
+
 

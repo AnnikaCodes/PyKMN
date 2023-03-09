@@ -233,7 +233,7 @@ class Pokemon:
                     if move_id == 0:  # None move
                         pp = 0
                     else:
-                        pp = math.floor(MOVES[move_names[move_index]] * 8 / 5)
+                        pp = min(math.floor(MOVES[move_names[move_index]] * 8 / 5), 61)
                 else:
                     pp = move_pp[move_index]
             self._bytes[offset] = move_id
