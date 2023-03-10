@@ -1,7 +1,7 @@
 """Tests the Gen 1 Pokemon class."""
 
 import unittest
-from pykmn.engine.gen1 import Battle, Choice, Player, Result, BoostData
+from pykmn.engine.gen1 import Battle, Choice, Player, Result
 from pykmn.data.gen1 import Gen1StatData
 # from pykmn.engine.protocol import parse_protocol
 
