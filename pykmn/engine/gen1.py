@@ -2,13 +2,13 @@
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
     pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s, \
-    pack_two_i4s, unpack_two_i4s # noqa: F401
+    pack_two_i4s, unpack_two_i4s, insert_unsigned_int_at_offset # noqa: F401
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
 from typing import List, Tuple, cast, TypedDict, Literal
-from enum import Enum
+from enum import Enum, IntEnum
 import math
 import random
 
@@ -18,6 +18,27 @@ import random
 MovePP = Tuple[str, int]
 FullMoveset = Tuple[str, str, str, str]
 Moveset = FullMoveset | Tuple[str] | Tuple[str, str] | Tuple[str, str, str]
+
+class VolatileFlag(IntEnum):
+    Bide = LAYOUT_OFFSETS['Volatiles']['Bide']
+    Thrashing = LAYOUT_OFFSETS['Volatiles']['Thrashing']
+    MultiHit = LAYOUT_OFFSETS['Volatiles']['MultiHit']
+    Flinch = LAYOUT_OFFSETS['Volatiles']['Flinch']
+    Charging = LAYOUT_OFFSETS['Volatiles']['Charging']
+    Binding = LAYOUT_OFFSETS['Volatiles']['Binding']
+    Invulnerable = LAYOUT_OFFSETS['Volatiles']['Invulnerable']
+    Confusion = LAYOUT_OFFSETS['Volatiles']['Confusion']
+    Mist = LAYOUT_OFFSETS['Volatiles']['Mist']
+    FocusEnergy = LAYOUT_OFFSETS['Volatiles']['FocusEnergy']
+    Substitute = LAYOUT_OFFSETS['Volatiles']['Substitute']
+    Recharging = LAYOUT_OFFSETS['Volatiles']['Recharging']
+    Rage = LAYOUT_OFFSETS['Volatiles']['Rage']
+    LeechSeed = LAYOUT_OFFSETS['Volatiles']['LeechSeed']
+    Toxic = LAYOUT_OFFSETS['Volatiles']['Toxic']
+    LightScreen = LAYOUT_OFFSETS['Volatiles']['LightScreen']
+    Reflect = LAYOUT_OFFSETS['Volatiles']['Reflect']
+    Transform = LAYOUT_OFFSETS['Volatiles']['Transform']
+
 
 class _InnerStatusEnum(Enum):
     HEALTHY = 0
@@ -633,6 +654,60 @@ class Battle:
             new_boosts['evasion'] if 'evasion' in new_boosts else old_boosts['evasion'],
         )
 
+    def volatile(self, player: Player, volatile: VolatileFlag) -> bool:
+        """Get a volatile of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        volatile_uint32_ptr = ffi.cast("uint32_t *", self._pkmn_battle.bytes[offset:(offset + 4)])
+        # https://stackoverflow.com/questions/9298865/get-n-th-bit-of-an-integer
+        return not not(volatile_uint32_ptr[0] & (1 << volatile))
+
+    def set_volatile(self, player: Player, volatile: VolatileFlag, value: bool) -> None:
+        """Set a volatile of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        volatile_uint32_ptr = ffi.cast("uint32_t *", self._pkmn_battle.bytes[offset:(offset + 4)])
+        if value:
+            volatile_uint32_ptr[0] |= (1 << volatile)
+        else:
+            volatile_uint32_ptr[0] &= ~(1 << volatile)
+
+    def confusion_turns_left(self, player: Player) -> int:
+        """Get the confusion counter of the active Pokémon of a player."""
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['confusion']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        # get the u3
+        return (self._pkmn_battle.bytes[byte_offset] >> bit_offset) & 0b111
+
+    def set_confusion_turns_left(self, player: Player, new_turns_left: int) -> None:
+        """Set the confusion counter of the active Pokémon of a player."""
+        assert new_turns_left <= (2**3) and new_turns_left >= 0, \
+            "new_turns_left must be an unsigned 3-bit integer"
+
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['confusion']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            n=new_turns_left,
+            bit_offset=bit_offset,
+            n_len_bits=3,
+        )
 
     def set_active_pokemon_types(
         self,

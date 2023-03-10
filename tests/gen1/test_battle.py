@@ -1,7 +1,7 @@
 """Tests the Gen 1 Pokemon class."""
 
 import unittest
-from pykmn.engine.gen1 import Battle, Choice, Player, Result
+from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag
 from pykmn.data.gen1 import Gen1StatData
 # from pykmn.engine.protocol import parse_protocol
 
@@ -255,17 +255,21 @@ class TestBattleData(unittest.TestCase):
         self.assertEqual(battle.species(Player.P1, 1), 'Mew')
         self.assertEqual(battle.species(Player.P2, 1), 'Eevee')
 
-    def test_types(self) -> None:
-        """Tests that the types are stored/loaded correctly."""
+    def test_types_transform(self) -> None:
+        """Tests that the type storage and Transform are correct."""
         battle = Battle(
-            p1_team=[('Charizard', ('Ember', ))],
+            p1_team=[('Charizard', ('Splash', ))],
             p2_team=[('Ditto', ('Transform', ))],
+            rng_seed=0,
         )
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
 
         # Transform should change active pokemon's types but not in the team
+
         run_first_choice(battle, battle.update(Choice.PASS(), Choice.PASS())[0])
+        self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Transform))
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.active_pokemon_types(Player.P2), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
@@ -273,6 +277,9 @@ class TestBattleData(unittest.TestCase):
         battle.set_types(Player.P2, 1, ('Grass', 'Poison'))
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.types(Player.P2, 1), ('Grass', 'Poison'))
+
+        battle.set_volatile(Player.P2, VolatileFlag.Transform, False)
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
 
     def test_level(self) -> None:
         battle = Battle([("Mew", ("Amnesia", ))], [("Mew", ("Surf", ), {'level': 47})])
@@ -293,3 +300,33 @@ class TestBattleData(unittest.TestCase):
         battle = Battle([('Bulbasaur', ('Growth', ))], [('Grimer', ('Poison Gas', ))])
         self.assertEqual(battle.pp_left(Player.P1, 1), (61, ))
         self.assertEqual(battle.pp_left(Player.P2, 1), (61, ))
+
+    def test_confusion(self) -> None:
+        """Tests confusion mechanics."""
+        battle = Battle(
+            [("Mew", ("Amnesia", ))],
+            [("Mew", ("Confuse Ray", ))],
+            # this seed makes the confusion last 3 turns on ShowdownRNG
+            rng_seed=412, # 1/256 miss chance my behated :(
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+        self.assertEqual(battle.confusion_turns_left(Player.P1), 0)
+        self.assertEqual(battle.confusion_turns_left(Player.P2), 0)
+        self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Confusion))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Confusion))
+
+        result = run_first_choice(battle, result) # P1: Amnesia, P2: Confuse Ray
+        self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Confusion))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Confusion))
+        p1_confusion_turns = battle.confusion_turns_left(Player.P1)
+        self.assertEqual(p1_confusion_turns, 3)
+        self.assertEqual(battle.confusion_turns_left(Player.P2), 0)
+
+        run_first_choice(battle, result) # P1: Amnesia, P2: Confuse Ray
+        self.assertEqual(battle.confusion_turns_left(Player.P1), p1_confusion_turns - 1)
+
+        battle.set_confusion_turns_left(Player.P1, 5) # never happens naturally!
+        self.assertEqual(battle.confusion_turns_left(Player.P1), 5)
+        self.assertEqual(battle.confusion_turns_left(Player.P2), 0)
+
+
