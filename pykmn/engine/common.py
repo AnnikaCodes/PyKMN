@@ -226,7 +226,7 @@ def unpack_two_i4s(n: int) -> Tuple[int, int]:
     a, b = unpack_two_u4s(n)
     return (a if a < 8 else a - 16, b if b < 8 else b - 16)
 
-def insert_unsigned_int_at_offset(byte: int, n: int, n_len_bits: int, bit_offset: int) -> int:
+def insert_unsigned_int_at_offset(byte: int, n: int, length: int, offset: int) -> int:
     """Insert an unsigned integer into a byte.
 
     Args:
@@ -239,10 +239,10 @@ def insert_unsigned_int_at_offset(byte: int, n: int, n_len_bits: int, bit_offset
         int: The byte with the unsigned integer inserted.
     """
     # zero the n bits at the offset
-    mask = (1 << n_len_bits) - 1
-    byte &= ~(mask << bit_offset)
+    mask = (1 << length) - 1
+    byte &= ~(mask << offset)
     # insert the n bits at the offset
-    byte |= (n & mask) << bit_offset
+    byte |= (n & mask) << offset
     return byte
 
 def extract_unsigned_int_at_offset(byte: int, length: int, offset: int) -> int:

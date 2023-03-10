@@ -710,8 +710,8 @@ class Battle:
         self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
             byte=self._pkmn_battle.bytes[byte_offset],
             n=new_turns_left,
-            bit_offset=bit_offset,
-            n_len_bits=3,
+            offset=bit_offset,
+            length=3,
         )
 
     def attacks_left(self, player: Player) -> int:
@@ -754,8 +754,8 @@ class Battle:
         self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
             byte=self._pkmn_battle.bytes[byte_offset],
             n=new_attacks_left,
-            bit_offset=bit_offset,
-            n_len_bits=3,
+            offset=bit_offset,
+            length=3,
         )
 
     def volatile_state(self, player: Player) -> int:
@@ -830,6 +830,45 @@ class Battle:
             TYPES.index(new_types[1 if len(new_types) == 2 else 0]),
         )
 
+    def transformed_into(self, player: Player) -> Tuple[Player, PokemonSlot]:
+        """Get the player and slot of the Pokémon that the active Pokémon transformed into."""
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['transform']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        transform_u4 = extract_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            offset=bit_offset,
+            length=4,
+        )
+        slot = cast(PokemonSlot, transform_u4 & 3)
+        return (Player.P1 if (transform_u4 >> 3) == 0 else Player.P2, slot)
+
+    def set_transformed_into(
+        self,
+        player: Player,
+        new_transformed_into: Tuple[Player, PokemonSlot]
+    ) -> None:
+        """Set the player and slot that the active Pokémon transformed into."""
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['transform']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        transform_u4 = (((new_transformed_into[0].value) << 3) | new_transformed_into[1])
+        self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            offset=bit_offset,
+            length=4,
+            n=transform_u4,
+        )
 
     def turn(self) -> int:
         """Get the current turn."""

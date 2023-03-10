@@ -257,7 +257,7 @@ class TestBattle(unittest.TestCase):
         self.assertEqual(battle.species(Player.P1, 1), 'Mew')
         self.assertEqual(battle.species(Player.P2, 1), 'Eevee')
 
-    def test_types_transform(self) -> None:
+    def test_transform(self) -> None:
         """Tests that the type storage and Transform are correct."""
         battle = Battle(
             p1_team=[('Charizard', ('Splash', ))],
@@ -269,9 +269,10 @@ class TestBattle(unittest.TestCase):
         self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
 
         # Transform should change active pokemon's types but not in the team
-
         run_first_choice(battle, battle.update(Choice.PASS(), Choice.PASS())[0])
         self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Transform))
+        self.assertTupleEqual(battle.transformed_into(Player.P2), (Player.P1, 1))
+
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.active_pokemon_types(Player.P2), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
@@ -279,6 +280,9 @@ class TestBattle(unittest.TestCase):
         battle.set_types(Player.P2, 1, ('Grass', 'Poison'))
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.types(Player.P2, 1), ('Grass', 'Poison'))
+
+        battle.set_transformed_into(Player.P2, (Player.P2, 3))
+        self.assertTupleEqual(battle.transformed_into(Player.P2), (Player.P2, 3))
 
         battle.set_volatile(Player.P2, VolatileFlag.Transform, False)
         self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
