@@ -1,9 +1,9 @@
 """Tests the Gen 1 Battle class."""
 
 import unittest
-from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag
+from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag, DisableData
 from pykmn.data.gen1 import Gen1StatData
-# from pykmn.engine.protocol import parse_protocol
+from pykmn.engine.protocol import parse_protocol
 
 def run_first_choice(battle: Battle, result: Result) -> Result:
     """Runs the first choice of a battle."""
@@ -226,7 +226,7 @@ class TestBattle(unittest.TestCase):
         )
 
     def test_status(self) -> None:
-        """Tests that the status is stored/loaded correctly."""
+        """Tests that status & the Toxic counter are stored/loaded correctly."""
         battle = Battle(
             p1_team=[('Muk', ('Toxic', ))],
             p2_team=[('Mew', ('Tackle', ))],
@@ -236,13 +236,27 @@ class TestBattle(unittest.TestCase):
         self.assertEqual(battle.status(Player.P1, 1), 0)
         self.assertEqual(battle.status(Player.P2, 1), 0)
 
-        run_first_choice(battle, result)
+        result = run_first_choice(battle, result)
+        # P2 is badly poisoned
         self.assertEqual(battle.status(Player.P2, 1), 8) # Toxic
+        self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Toxic))
+        self.assertEqual(battle.toxic_severity(Player.P2), 0)
+
+        result = run_first_choice(battle, result)
         self.assertEqual(battle.status(Player.P1, 1), 0) # No status
+        self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Toxic))
+        self.assertEqual(battle.toxic_severity(Player.P2), 1)
+
+        result = run_first_choice(battle, result)
+        self.assertEqual(battle.toxic_severity(Player.P2), 2)
+        self.assertEqual(battle.status(Player.P2, 1), 8) # Toxic
 
         battle.set_status(Player.P1, 1, 32)
         self.assertEqual(battle.status(Player.P1, 1), 32)
         self.assertEqual(battle.status(Player.P2, 1), 8)
+
+        battle.set_toxic_severity(Player.P2, 5)
+        self.assertEqual(battle.toxic_severity(Player.P2), 5)
 
     def test_species(self) -> None:
         """Tests that the species is stored/loaded correctly."""
@@ -403,3 +417,43 @@ class TestBattle(unittest.TestCase):
 
         battle.set_substitute_hp(Player.P1, 200)
         self.assertEqual(battle.substitute_hp(Player.P1), 200)
+
+    def test_disable(self) -> None:
+        """Tests Disable mechanics."""
+        battle = Battle(
+            [("Squirtle", ("Disable", ), {'dvs': zero_dvs})],
+            [("Squirtle", ("Tackle", ))],
+            # TODO: investigate turns_left=8 when this seed is 2
+            rng_seed=1,
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+        self.assertTupleEqual(
+            battle.disable_data(Player.P1),
+            DisableData(move_slot=0, turns_left=0)
+        )
+        self.assertTupleEqual(
+            battle.disable_data(Player.P2),
+            DisableData(move_slot=0, turns_left=0)
+        )
+
+
+        result = run_first_choice(battle, result) # P2: Struggle, P1: Disable (fails)
+        self.assertTupleEqual(
+            battle.disable_data(Player.P1),
+            DisableData(move_slot=0, turns_left=0)
+        )
+        self.assertTupleEqual(
+            battle.disable_data(Player.P2),
+            DisableData(move_slot=1, turns_left=4)
+        )
+
+        p1_choice = battle.possible_choices(Player.P1, result)[0]
+        p2_choice = battle.possible_choices(Player.P2, result)[0]
+        (result, trace) = battle.update(p1_choice, p2_choice)
+        self.assertEqual(parse_protocol(trace)[0], '|move|p2a: Pokémon #1|Struggle|p1a: Pokémon #1')
+
+        battle.set_disable_data(Player.P2, DisableData(move_slot=3, turns_left=6))
+        self.assertTupleEqual(
+            battle.disable_data(Player.P2),
+            DisableData(move_slot=3, turns_left=6)
+        )

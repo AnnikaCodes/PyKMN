@@ -10,6 +10,7 @@ from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1Stat
 
 from typing import List, Tuple, cast, TypedDict, Literal
 from enum import Enum, IntEnum
+from collections import namedtuple
 import math
 import random
 
@@ -489,7 +490,7 @@ PartialBoostData = TypedDict('PartialBoostData', {
     'accuracy': int,
     'evasion': int,
 }, total=False)
-
+DisableData = namedtuple('DisableData', ['move_slot', 'turns_left'])
 class Battle:
     """A Generation I Pokémon battle."""
 
@@ -869,6 +870,90 @@ class Battle:
             length=4,
             n=transform_u4,
         )
+
+    def disable_data(self, player: Player) -> DisableData:
+        """Get data about a Disabled move of the active Pokémon of a player."""
+        base = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+
+        duration_byte_offset = base + (LAYOUT_OFFSETS['Volatiles']['disabled_duration'] // 8)
+        duration_bit_offset = LAYOUT_OFFSETS['Volatiles']['disabled_duration'] % 8
+        duration = extract_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[duration_byte_offset],
+            offset=duration_bit_offset,
+            length=4,
+        )
+
+        move_byte_offset = base + (LAYOUT_OFFSETS['Volatiles']['disabled_move'] // 8)
+        move_bit_offset = LAYOUT_OFFSETS['Volatiles']['disabled_move'] % 8
+        move = extract_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[move_byte_offset],
+            offset=move_bit_offset,
+            length=3,
+        )
+
+        return DisableData(move_slot=move, turns_left=duration)
+
+    def set_disable_data(self, player: Player, new_disable_data: DisableData) -> None:
+        """Set data about a Disabled move of the active Pokémon of a player."""
+        base = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+
+        duration_byte_offset = base + (LAYOUT_OFFSETS['Volatiles']['disabled_duration'] // 8)
+        duration_bit_offset = LAYOUT_OFFSETS['Volatiles']['disabled_duration'] % 8
+        self._pkmn_battle.bytes[duration_byte_offset] = insert_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[duration_byte_offset],
+            offset=duration_bit_offset,
+            length=4,
+            n=new_disable_data.turns_left,
+        )
+
+        move_byte_offset = base + (LAYOUT_OFFSETS['Volatiles']['disabled_move'] // 8)
+        move_bit_offset = LAYOUT_OFFSETS['Volatiles']['disabled_move'] % 8
+        self._pkmn_battle.bytes[move_byte_offset] = insert_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[move_byte_offset],
+            offset=move_bit_offset,
+            length=3,
+            n=new_disable_data.move_slot,
+        )
+
+    def toxic_severity(self, player: Player) -> int:
+        """Get the Toxic counter of the active Pokémon of a player."""
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['toxic']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        return extract_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            offset=bit_offset,
+            length=5,
+        )
+
+    def set_toxic_severity(self, player: Player, new_toxic_counter: int) -> None:
+        """Set the Toxic counter of the active Pokémon of a player."""
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['toxic']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            offset=bit_offset,
+            length=5,
+            n=new_toxic_counter,
+        )
+
 
     def turn(self) -> int:
         """Get the current turn."""
