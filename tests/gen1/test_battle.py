@@ -1,7 +1,7 @@
 """Tests the Gen 1 Pokemon class."""
 
 import unittest
-from pykmn.engine.gen1 import Battle, Choice, Player, Result
+from pykmn.engine.gen1 import Battle, Choice, Player, Result, BoostData
 from pykmn.data.gen1 import Gen1StatData
 # from pykmn.engine.protocol import parse_protocol
 
@@ -15,18 +15,25 @@ def run_first_choice(battle: Battle, result: Result) -> Result:
 class TestBattleData(unittest.TestCase):
     def test_active_pokemon_stats(self):
         """Tests stat-boosting moves."""
-        battle = Battle(
-            [('Mew', ('Swords Dance',))],
-            [('Mew', ('Amnesia',))],
-        )
+        battle = Battle([('Mew', ('Swords Dance', ))], [('Mew', ('Screech', ))], rng_seed=0)
         (result, _) = battle.update(Choice.PASS(), Choice.PASS())
 
+        no_boosts = {'atk': 0, 'def': 0, 'spe': 0, 'spc': 0, 'accuracy': 0, 'evasion': 0}
         self.assertDictEqual(battle.p1.active_pokemon_stats(), battle.p2.active_pokemon_stats())
         self.assertDictEqual(battle.p1.active_pokemon_stats(), battle.p1.team[0].stats())
         self.assertDictEqual(battle.p1.team[0].stats(), battle.active_pokemon_stats(Player.P1))
         self.assertDictEqual(battle.p2.team[0].stats(), battle.active_pokemon_stats(Player.P2))
 
-        result = run_first_choice(battle, result)
+        self.assertDictEqual(battle.boosts(Player.P1), no_boosts)
+        self.assertDictEqual(battle.boosts(Player.P2), no_boosts)
+
+        result = run_first_choice(battle, result) # P1: Swords Dance, P2: Screech
+        self.assertDictEqual(
+            battle.boosts(Player.P1),
+            {'atk': 2, 'def': -2, 'spe': 0, 'spc': 0, 'accuracy': 0, 'evasion': 0},
+        )
+        self.assertDictEqual(battle.boosts(Player.P2), no_boosts)
+
         p1_active_stats = battle.p1.active_pokemon_stats()
         p1_original_stats = battle.p1.team[0].stats()
         p2_active_stats = battle.p2.active_pokemon_stats()
@@ -36,10 +43,9 @@ class TestBattleData(unittest.TestCase):
         self.assertEqual(p1_active_stats['atk'], p1_original_stats['atk'] * 2)
         self.assertEqual(p1_active_stats['spc'], p2_original_stats['spc'])
 
-        self.assertEqual(p2_active_stats['spc'], p2_original_stats['spc'] * 2)
-        self.assertEqual(p2_active_stats['atk'], p2_original_stats['atk'])
+        self.assertEqual(p1_active_stats['def'], p1_original_stats['def'] / 2)
 
-        for unchanged_stat in ['hp', 'def', 'spe']:
+        for unchanged_stat in ['hp', 'spc', 'spe']:
             self.assertEqual(p1_active_stats[unchanged_stat], p1_original_stats[unchanged_stat])
             self.assertEqual(p2_active_stats[unchanged_stat], p2_original_stats[unchanged_stat])
 
@@ -57,6 +63,12 @@ class TestBattleData(unittest.TestCase):
         self.assertEqual(new_active_stats['def'], 97)
         for unchanged_stat in ['hp', 'atk', 'spe']:
             self.assertEqual(new_active_stats[unchanged_stat], p1_active_stats[unchanged_stat])
+
+        battle.set_boosts(Player.P2, {'evasion': -1})
+        self.assertDictEqual(
+            battle.boosts(Player.P2),
+            {'atk': 0, 'def': 0, 'spe': 0, 'spc': 0, 'accuracy': 0, 'evasion': -1},
+        )
 
     def test_active_pokemon_species(self) -> None:
         """ActivePokemon.species test."""
@@ -281,5 +293,3 @@ class TestBattleData(unittest.TestCase):
         battle = Battle([('Bulbasaur', ('Growth', ))], [('Grimer', ('Poison Gas', ))])
         self.assertEqual(battle.pp_left(Player.P1, 1), (61, ))
         self.assertEqual(battle.pp_left(Player.P2, 1), (61, ))
-
-

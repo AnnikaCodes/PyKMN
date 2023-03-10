@@ -1,7 +1,8 @@
 """Battle simulation for Generation I."""
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
-    pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s # noqa: F401
+    pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s, \
+    pack_two_i4s, unpack_two_i4s # noqa: F401
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
@@ -373,7 +374,7 @@ class Pokemon:
 # MAJOR TODO!
 # * incorporate ActivePokemon stuff into Battle methods
 #   https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L99-L105
-# * remove subclasses and put everything into the Battle class for s p e e d
+# * remove subclasses and put all initialization into the Battle class for s p e e d
 # * properly handle status
 # * write unit tests
 # * make all constructors check array lengths, etc, for validity
@@ -450,6 +451,22 @@ class Side:
 # Optimization: remove debug asserts
 
 PokemonSlot = Literal[1] | Literal[2] | Literal[3] | Literal[4] | Literal[5] | Literal[6]
+BoostData = TypedDict('BoostData', {
+    'atk': int,
+    'def': int,
+    'spe': int,
+    'spc': int,
+    'accuracy': int,
+    'evasion': int,
+}) # optimization: is a namedtuple/class faster than a dict?
+PartialBoostData = TypedDict('PartialBoostData', {
+    'atk': int,
+    'def': int,
+    'spe': int,
+    'spc': int,
+    'accuracy': int,
+    'evasion': int,
+}, total=False)
 
 class Battle:
     """A Generation I Pokémon battle."""
@@ -577,6 +594,45 @@ class Battle:
             LAYOUT_OFFSETS['ActivePokemon']['types']
         (type1, type2) = unpack_two_u4s(self._pkmn_battle.bytes[offset])
         return (TYPES[type1], TYPES[type2]) if type2 != type1 else (TYPES[type1], )
+
+    def boosts(self, player: Player) -> BoostData:
+        """Get the boosts of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['boosts']
+        (attack, defense) = unpack_two_i4s(self._pkmn_battle.bytes[offset])
+        (speed, special) = unpack_two_i4s(self._pkmn_battle.bytes[offset + 1])
+        (accuracy, evasion) = unpack_two_i4s(self._pkmn_battle.bytes[offset + 2])
+        return {
+            'atk': attack,
+            'def': defense,
+            'spe': speed,
+            'spc': special,
+            'accuracy': accuracy,
+            'evasion': evasion,
+        }
+
+    def set_boosts(self, player: Player, new_boosts: PartialBoostData) -> None:
+        """Set the boosts of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['boosts']
+        old_boosts = self.boosts(player)
+        self._pkmn_battle.bytes[offset] = pack_two_i4s(
+            new_boosts['atk'] if 'atk' in new_boosts else old_boosts['atk'],
+            new_boosts['def'] if 'def' in new_boosts else old_boosts['def'],
+        )
+        self._pkmn_battle.bytes[offset + 1] = pack_two_i4s(
+            new_boosts['spe'] if 'spe' in new_boosts else old_boosts['spe'],
+            new_boosts['spc'] if 'spc' in new_boosts else old_boosts['spc'],
+        )
+        self._pkmn_battle.bytes[offset + 2] = pack_two_i4s(
+            new_boosts['accuracy'] if 'accuracy' in new_boosts else old_boosts['accuracy'],
+            new_boosts['evasion'] if 'evasion' in new_boosts else old_boosts['evasion'],
+        )
+
 
     def set_active_pokemon_types(
         self,

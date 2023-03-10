@@ -200,3 +200,28 @@ def unpack_two_u4s(n: int) -> Tuple[int, int]:
     """
     return (n & 0x0F, (n >> 4) & 0x0F)
 
+
+
+def pack_two_i4s(a: int, b: int) -> int:
+    """Pack two signed 4-bit integers into a single byte.
+
+    Args:
+        a (int): The first signed 4-bit integer to pack.
+        b (int): The second signed 4-bit integer to pack.
+
+    Returns:
+        int: The single byte.
+    """
+    return pack_two_u4s(a & 0x0F, b & 0x0F)
+
+def unpack_two_i4s(n: int) -> Tuple[int, int]:
+    """Unpack a single byte into two signed 4-bit integers.
+
+    Args:
+        n (int): The single byte.
+
+    Returns:
+        Tuple[int, int]: The two signed 4-bit integers.
+    """
+    a, b = unpack_two_u4s(n)
+    return (a if a < 8 else a - 16, b if b < 8 else b - 16)
