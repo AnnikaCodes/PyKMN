@@ -329,31 +329,47 @@ class TestBattleData(unittest.TestCase):
         self.assertEqual(battle.confusion_turns_left(Player.P1), 5)
         self.assertEqual(battle.confusion_turns_left(Player.P2), 0)
 
-    def test_attacks_left(self) -> None:
-        """Tests that attacks_left is stored/loaded correctly by using the move Bide."""
-        battle = Battle([("Mew", ("Bide", ))], [("Mew", ("Tackle", ))], rng_seed=0)
+    def test_bide(self) -> None:
+        """Tests volatile data storage by using the move Bide."""
+        zero_dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
+        battle = Battle(
+            [("Mew", ("Bide", ))],
+            # zero DVs so that it goes last
+            [("Mew", ("Swift", ), {'dvs': zero_dvs})],
+            rng_seed=0,
+        )
+        p1_full_hp = battle.stats(Player.P1, 1)['hp']
 
         (result, _) = battle.update(Choice.PASS(), Choice.PASS())
         self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Bide))
         self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Bide))
         self.assertEqual(battle.attacks_left(Player.P1), 0)
         self.assertEqual(battle.attacks_left(Player.P2), 0)
+        self.assertEqual(battle.volatile_state(Player.P1), 0)
 
-        result = run_first_choice(battle, result) # P1: Bide, P2: Tackle
+        result = run_first_choice(battle, result) # P1: Bide, P2: Swift
         self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Bide))
         self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Bide))
         # 2 Bide turns on this seed with ShowdownRNG
         self.assertEqual(battle.attacks_left(Player.P1), 2)
         self.assertEqual(battle.attacks_left(Player.P2), 0)
+        turn1_damage = p1_full_hp - battle.current_hp(Player.P1, 1)
 
-        run_first_choice(battle, result) # P1: Bide (fails), P2: Tackle
+        run_first_choice(battle, result) # P1: Bide (fails), P2: Swift
+        # the Bide damage counter updates at the start of *this* turn with *last* turn's damage
+        self.assertEqual(battle.volatile_state(Player.P1), turn1_damage)
+
         self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Bide))
         self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Bide))
         self.assertEqual(battle.attacks_left(Player.P1), 1)
         self.assertEqual(battle.attacks_left(Player.P2), 0)
+        # the Bide damage counter should be equal to the ACCUMULATED damage dealt to the Bide user
 
         battle.set_attacks_left(Player.P1, 5)
         self.assertEqual(battle.attacks_left(Player.P1), 5)
         self.assertEqual(battle.attacks_left(Player.P2), 0)
+
+        battle.set_volatile_state(Player.P1, 7832)
+        self.assertEqual(battle.volatile_state(Player.P1), 7832)
 
 

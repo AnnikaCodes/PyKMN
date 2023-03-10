@@ -758,6 +758,44 @@ class Battle:
             n_len_bits=3,
         )
 
+    def volatile_state(self, player: Player) -> int:
+        """
+        Get the volatile state of the active Pokémon of a player.
+
+        This 16-bit unsigned integer is used to track the amount of damage accumulated for Bide,
+        and to store data for certain accuracy-related bugs.
+
+        You can read more in the libpkmn docs:
+        https://github.com/pkmn/engine/blob/main/src/lib/gen1/README.md#Volatiles
+        """
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
+            (LAYOUT_OFFSETS['Volatiles']['state'] // 8)
+        # we don't need a bit_offset because the state is byte-aligned
+        assert LAYOUT_OFFSETS['Volatiles']['state'] % 8 == 0
+        bytes = self._pkmn_battle.bytes
+        return unpack_u16_from_bytes(bytes[offset], bytes[offset + 1])
+
+    def set_volatile_state(self, player: Player, new_state: int) -> None:
+        """
+        Set the volatile state of the active Pokémon of a player.
+
+        This 16-bit unsigned integer is used to track the amount of damage accumulated for Bide,
+        and to store data for certain accuracy-related bugs.
+
+        You can read more in the libpkmn docs:
+        https://github.com/pkmn/engine/blob/main/src/lib/gen1/README.md#Volatiles
+        """
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
+            (LAYOUT_OFFSETS['Volatiles']['state'] // 8)
+        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_state)
+
+
     def set_active_pokemon_types(
         self,
         player: Player,
