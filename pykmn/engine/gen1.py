@@ -371,9 +371,9 @@ class Pokemon:
 
 
 # MAJOR TODO!
-# * remove subclasses and put everything into the Battle class for s p e e d
 # * incorporate ActivePokemon stuff into Battle methods
 #   https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L99-L105
+# * remove subclasses and put everything into the Battle class for s p e e d
 # * properly handle status
 # * write unit tests
 # * make all constructors check array lengths, etc, for validity
@@ -381,7 +381,7 @@ class Pokemon:
 # * add support for toggling -Dshowdown & -Dtrace
 #    * support non-Showdown RNG
 # * investigate performance and optimize
-# * simplify typing as needed
+# * simplify typing as needed (and make sure everything's typed)
 # * maybe more documentation?
 
 class Side:
@@ -553,7 +553,46 @@ class Battle:
                     pack_u16_as_bytes(new_stats[stat]) # type: ignore
             offset += 2
 
-    # TODO: more ActivePokemon getters/setters
+    def active_pokemon_species(self, player: Player) -> str:
+        """Get the species of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['species']
+        return SPECIES_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
+
+    def set_active_pokemon_species(self, player: Player, new_species: str) -> None:
+        """Set the species of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['species']
+        self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
+
+    def active_pokemon_types(self, player: Player) -> Tuple[str, str] | Tuple[str]:
+        """Get the types of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['types']
+        (type1, type2) = unpack_two_u4s(self._pkmn_battle.bytes[offset])
+        return (TYPES[type1], TYPES[type2]) if type2 != type1 else (TYPES[type1], )
+
+    def set_active_pokemon_types(
+        self,
+        player: Player,
+        new_types: Tuple[str, str] | Tuple[str]
+    ) -> None:
+        """Set the types of the active Pokémon of a player."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['types']
+        self._pkmn_battle.bytes[offset] = pack_two_u4s(
+            TYPES.index(new_types[0]),
+            TYPES.index(new_types[1 if len(new_types) == 2 else 0]),
+        )
+
 
     def turn(self) -> int:
         """Get the current turn."""
@@ -782,6 +821,7 @@ class Battle:
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['level']
         self._pkmn_battle.bytes[offset] = new_level
+
 
     def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.

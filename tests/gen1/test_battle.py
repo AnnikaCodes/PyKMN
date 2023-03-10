@@ -58,6 +58,37 @@ class TestBattleData(unittest.TestCase):
         for unchanged_stat in ['hp', 'atk', 'spe']:
             self.assertEqual(new_active_stats[unchanged_stat], p1_active_stats[unchanged_stat])
 
+    def test_active_pokemon_species(self) -> None:
+        """ActivePokemon.species test."""
+        battle = Battle(
+            [('Starmie', ('None',)), ('Kangaskhan', ('Tackle', ))],
+            [('Articuno', ('Amnesia',))],
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+
+        self.assertEqual(battle.active_pokemon_species(Player.P1), 'Starmie')
+        self.assertEqual(battle.active_pokemon_species(Player.P2), 'Articuno')
+
+        run_first_choice(battle, result) # P1: switch Starmie -> Kangaskhan, P2: use move Amnesia
+        self.assertEqual(battle.active_pokemon_species(Player.P1), 'Kangaskhan')
+        self.assertEqual(battle.active_pokemon_species(Player.P2), 'Articuno')
+
+        battle.set_active_pokemon_species(Player.P2, 'Goldeen')
+        self.assertEqual(battle.active_pokemon_species(Player.P2), 'Goldeen')
+
+    def test_active_pokemon_types(self) -> None:
+        """ActivePokemon.types test."""
+        battle = Battle([('Charizard', ('Swords Dance', ))], [('Blastoise', ('Amnesia', 'Fly'))])
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+
+        self.assertTupleEqual(battle.active_pokemon_types(Player.P1), ('Fire', 'Flying'))
+        self.assertTupleEqual(battle.active_pokemon_types(Player.P2), ('Water', ))
+
+        # Transform is tested elsewhere
+        battle.set_active_pokemon_types(Player.P1, ('Normal', ))
+        self.assertTupleEqual(battle.active_pokemon_types(Player.P1), ('Normal', ))
+
+
     def test_last_selected_move(self):
         """Tests that the last selected move is stored/loaded correctly."""
         battle = Battle([('Mew', ('Swords Dance', 'Surf'))], [('Mew', ('Amnesia', 'Fly'))])
@@ -221,10 +252,11 @@ class TestBattleData(unittest.TestCase):
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
         self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
 
-        # TODO: active pokemon stuff
-        # run_first_choice(battle, battle.update(Choice.PASS(), Choice.PASS())[0])
-        # self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
-        # self.assertTupleEqual(battle.active_pokemon_type(), ('Fire', 'Flying'))
+        # Transform should change active pokemon's types but not in the team
+        run_first_choice(battle, battle.update(Choice.PASS(), Choice.PASS())[0])
+        self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
+        self.assertTupleEqual(battle.active_pokemon_types(Player.P2), ('Fire', 'Flying'))
+        self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
 
         battle.set_types(Player.P2, 1, ('Grass', 'Poison'))
         self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
