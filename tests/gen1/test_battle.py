@@ -1,4 +1,4 @@
-"""Tests the Gen 1 Pokemon class."""
+"""Tests the Gen 1 Battle class."""
 
 import unittest
 from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag
@@ -12,7 +12,9 @@ def run_first_choice(battle: Battle, result: Result) -> Result:
     (result, _) = battle.update(p1choice, p2choice)
     return result
 
-class TestBattleData(unittest.TestCase):
+zero_dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
+
+class TestBattle(unittest.TestCase):
     def test_active_pokemon_stats(self):
         """Tests stat-boosting moves."""
         battle = Battle([('Mew', ('Swords Dance', ))], [('Mew', ('Screech', ))], rng_seed=0)
@@ -331,7 +333,6 @@ class TestBattleData(unittest.TestCase):
 
     def test_bide(self) -> None:
         """Tests volatile data storage by using the move Bide."""
-        zero_dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
         battle = Battle(
             [("Mew", ("Bide", ))],
             # zero DVs so that it goes last
@@ -372,4 +373,29 @@ class TestBattleData(unittest.TestCase):
         battle.set_volatile_state(Player.P1, 7832)
         self.assertEqual(battle.volatile_state(Player.P1), 7832)
 
+    def test_substitute(self) -> None:
+        """Tests Substitute mechanics."""
+        battle = Battle(
+            # zero DVs so it goes last and doesn't have the sub take damage the turn it goes up
+            [("Squirtle", ("Substitute", ), {'dvs': zero_dvs})],
+            [("Squirtle", ("Tackle", ))],
+        )
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+        sub_hp = battle.stats(Player.P1, 1)['hp'] // 4 + 1
+        self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Substitute))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Substitute))
+        self.assertEqual(battle.substitute_hp(Player.P1), 0)
+        self.assertEqual(battle.substitute_hp(Player.P2), 0)
 
+        result = run_first_choice(battle, result) # P2: Tackle, P1: Substitute
+        self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Substitute))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Substitute))
+        self.assertEqual(battle.substitute_hp(Player.P1), sub_hp)
+
+        run_first_choice(battle, result) # P2: Tackle, P1: Substitute (fails)
+        self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Substitute))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Substitute))
+        self.assertEqual(battle.substitute_hp(Player.P1), sub_hp - battle.last_damage())
+
+        battle.set_substitute_hp(Player.P1, 200)
+        self.assertEqual(battle.substitute_hp(Player.P1), 200)

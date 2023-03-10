@@ -795,6 +795,25 @@ class Battle:
             (LAYOUT_OFFSETS['Volatiles']['state'] // 8)
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_state)
 
+    def substitute_hp(self, player: Player) -> int:
+        """Get the HP of the Substitute up on a player's side."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
+            (LAYOUT_OFFSETS['Volatiles']['substitute'] // 8)
+        assert LAYOUT_OFFSETS['Volatiles']['substitute'] % 8 == 0
+        return self._pkmn_battle.bytes[offset]
+
+    def set_substitute_hp(self, player: Player, new_hp: int) -> None:
+        """Set the HP of the Substitute up on a player's side."""
+        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
+            (LAYOUT_OFFSETS['Volatiles']['substitute'] // 8)
+        assert LAYOUT_OFFSETS['Volatiles']['substitute'] % 8 == 0
+        self._pkmn_battle.bytes[offset] = new_hp
 
     def set_active_pokemon_types(
         self,
