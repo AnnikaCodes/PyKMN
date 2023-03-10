@@ -329,4 +329,31 @@ class TestBattleData(unittest.TestCase):
         self.assertEqual(battle.confusion_turns_left(Player.P1), 5)
         self.assertEqual(battle.confusion_turns_left(Player.P2), 0)
 
+    def test_attacks_left(self) -> None:
+        """Tests that attacks_left is stored/loaded correctly by using the move Bide."""
+        battle = Battle([("Mew", ("Bide", ))], [("Mew", ("Tackle", ))], rng_seed=0)
+
+        (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+        self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Bide))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Bide))
+        self.assertEqual(battle.attacks_left(Player.P1), 0)
+        self.assertEqual(battle.attacks_left(Player.P2), 0)
+
+        result = run_first_choice(battle, result) # P1: Bide, P2: Tackle
+        self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Bide))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Bide))
+        # 2 Bide turns on this seed with ShowdownRNG
+        self.assertEqual(battle.attacks_left(Player.P1), 2)
+        self.assertEqual(battle.attacks_left(Player.P2), 0)
+
+        run_first_choice(battle, result) # P1: Bide (fails), P2: Tackle
+        self.assertTrue(battle.volatile(Player.P1, VolatileFlag.Bide))
+        self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Bide))
+        self.assertEqual(battle.attacks_left(Player.P1), 1)
+        self.assertEqual(battle.attacks_left(Player.P2), 0)
+
+        battle.set_attacks_left(Player.P1, 5)
+        self.assertEqual(battle.attacks_left(Player.P1), 5)
+        self.assertEqual(battle.attacks_left(Player.P2), 0)
+
 

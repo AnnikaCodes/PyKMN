@@ -244,3 +244,16 @@ def insert_unsigned_int_at_offset(byte: int, n: int, n_len_bits: int, bit_offset
     # insert the n bits at the offset
     byte |= (n & mask) << bit_offset
     return byte
+
+def extract_unsigned_int_at_offset(byte: int, length: int, offset: int) -> int:
+    """Extract an unsigned integer from a byte.
+
+    Args:
+        byte (int): The byte to extract from.
+        length_bits (int): The number of bits in the unsigned integer.
+        offset (int): The offset in bits at which to extract the unsigned integer.
+
+    Returns:
+        int: The unsigned integer extracted from the byte.
+    """
+    return (byte >> offset) & ((1 << length) - 1)

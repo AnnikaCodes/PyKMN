@@ -2,7 +2,8 @@
 from _pkmn_engine_bindings import lib, ffi  # type: ignore
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
     pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s, \
-    pack_two_i4s, unpack_two_i4s, insert_unsigned_int_at_offset # noqa: F401
+    pack_two_i4s, unpack_two_i4s, insert_unsigned_int_at_offset, extract_unsigned_int_at_offset \
+    # noqa: F401
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
@@ -687,7 +688,11 @@ class Battle:
         bit_offset %= 8
 
         # get the u3
-        return (self._pkmn_battle.bytes[byte_offset] >> bit_offset) & 0b111
+        return extract_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            offset=bit_offset,
+            length=3,
+        )
 
     def set_confusion_turns_left(self, player: Player, new_turns_left: int) -> None:
         """Set the confusion counter of the active Pokémon of a player."""
@@ -705,6 +710,50 @@ class Battle:
         self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
             byte=self._pkmn_battle.bytes[byte_offset],
             n=new_turns_left,
+            bit_offset=bit_offset,
+            n_len_bits=3,
+        )
+
+    def attacks_left(self, player: Player) -> int:
+        """
+        Get the attacks left counter of the active Pokémon.
+
+        This counter is used for Bide and Thrash.
+        """
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['attacks']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        return extract_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            offset=bit_offset,
+            length=3,
+        )
+
+    def set_attacks_left(self, player: Player, new_attacks_left: int) -> None:
+        """
+        Set the attacks left counter of the active Pokémon.
+
+        This counter is used for Bide and Thrash.
+        """
+        assert new_attacks_left <= (2**3) and new_attacks_left >= 0, \
+            "new_attacks_left must be an unsigned 3-bit integer"
+
+        byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_OFFSETS['Side']['active'] + \
+            LAYOUT_OFFSETS['ActivePokemon']['volatiles']
+        bit_offset = LAYOUT_OFFSETS['Volatiles']['attacks']
+        byte_offset += bit_offset // 8
+        bit_offset %= 8
+
+        self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
+            byte=self._pkmn_battle.bytes[byte_offset],
+            n=new_attacks_left,
             bit_offset=bit_offset,
             n_len_bits=3,
         )
