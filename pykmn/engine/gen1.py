@@ -319,6 +319,7 @@ class Pokemon:
                 if self._bytes[offset + n] != 0
         ) # type: ignore
 
+
     def pp_left(self) -> Tuple[int, ...]:
         """Get the Pokémon's PP left for each move.
 
@@ -1048,13 +1049,21 @@ class Battle:
                     pack_u16_as_bytes(new_stats[stat]) # type: ignore
             offset += 2
 
-    def moves(self, player: Player, pokemon: PokemonSlot) -> Moveset:
+    # TODO: is this the most performant way to do this? Maybe an enum or separate method?
+    def moves(self, player: Player, pokemon: PokemonSlot | Literal['Active']) -> Moveset:
         """Get the moves of a Pokémon."""
-        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
-            LAYOUT_OFFSETS['Side']['pokemon'] + \
-            LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
-            LAYOUT_OFFSETS['Pokemon']['moves']
+        if not isinstance(pokemon, int):
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['active'] + \
+                LAYOUT_OFFSETS['ActivePokemon']['moves']
+        else:
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['pokemon'] + \
+                LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
+                LAYOUT_OFFSETS['Pokemon']['moves']
+
         moves = tuple(
             MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset + n]] \
                 for n in range(0, 8, 2) \
@@ -1062,26 +1071,43 @@ class Battle:
         )
         return cast(Moveset, moves)
 
-    def pp_left(self, player: Player, pokemon: PokemonSlot) -> Tuple[int, ...]:
+
+    def pp_left(self, player: Player, pokemon: PokemonSlot | Literal['Active']) -> Tuple[int, ...]:
         """Get the PP left of a Pokémon's moves."""
-        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
-            LAYOUT_OFFSETS['Side']['pokemon'] + \
-            LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
-            LAYOUT_OFFSETS['Pokemon']['moves']
+        if not isinstance(pokemon, int):
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['active'] + \
+                LAYOUT_OFFSETS['ActivePokemon']['moves']
+        else:
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['pokemon'] + \
+                LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
+                LAYOUT_OFFSETS['Pokemon']['moves']
         return tuple(
             self._pkmn_battle.bytes[offset + n] \
                 for n in range(1, 9, 2) \
                 if self._pkmn_battle.bytes[offset + n - 1] != 0 # if move exists
         )
 
-    def moves_with_pp(self, player: Player, pokemon: PokemonSlot) -> Tuple[MovePP, ...]:
+    def moves_with_pp(
+        self,
+        player: Player,
+        pokemon: PokemonSlot | Literal['Active']
+    ) -> Tuple[MovePP, ...]:
         """Get the moves of a Pokémon with their PP."""
-        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
-            LAYOUT_OFFSETS['Side']['pokemon'] + \
-            LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
-            LAYOUT_OFFSETS['Pokemon']['moves']
+        if not isinstance(pokemon, int):
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['active'] + \
+                LAYOUT_OFFSETS['ActivePokemon']['moves']
+        else:
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['pokemon'] + \
+                LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
+                LAYOUT_OFFSETS['Pokemon']['moves']
         bytes = self._pkmn_battle.bytes
         return tuple(
             (MOVE_ID_LOOKUP[bytes[offset + n]], bytes[offset + n + 1]) \
@@ -1092,15 +1118,21 @@ class Battle:
     def set_moves(
         self,
         player: Player,
-        pokemon: PokemonSlot,
+        pokemon: PokemonSlot | Literal['Active'],
         new_moves: Tuple[MovePP, MovePP, MovePP, MovePP]
     ) -> None:
         """Set the moves of a Pokémon."""
-        offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
-            LAYOUT_OFFSETS['Side']['pokemon'] + \
-            LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
-            LAYOUT_OFFSETS['Pokemon']['moves']
+        if not isinstance(pokemon, int):
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['active'] + \
+                LAYOUT_OFFSETS['ActivePokemon']['moves']
+        else:
+            offset = LAYOUT_OFFSETS['Battle']['sides'] + \
+                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_OFFSETS['Side']['pokemon'] + \
+                LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
+                LAYOUT_OFFSETS['Pokemon']['moves']
 
         for i, (move, pp) in enumerate(new_moves):
             self._pkmn_battle.bytes[offset + i*2] = MOVE_IDS[move]
