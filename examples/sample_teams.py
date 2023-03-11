@@ -1,9 +1,10 @@
 """Test script."""
-from pykmn.engine.gen1 import Battle, Player, Choice
+from pykmn.engine.gen1 import Battle, Player, Choice, statcalc
 from pykmn.engine.common import ResultType
 from pykmn.engine.protocol import parse_protocol
 
 import random
+import cProfile
 
 def hexfmt(b):
     """Format bytes as hex."""
@@ -59,8 +60,13 @@ def run_battle(log=False):
         if log:
             print(f"\n------------ Choice {choice} ------------")
         choice += 1
-        p1_choice = random.choice(battle.possible_choices(Player.P1, result))
-        p2_choice = random.choice(battle.possible_choices(Player.P2, result))
+        def choices():
+            for _ in range(1000):
+                battle.possible_choices(Player.P1, result)
+
+
+        p1_choice = battle.possible_choices(Player.P1, result).pop()
+        p2_choice = battle.possible_choices(Player.P2, result).pop()
         if log:
             print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
         (result, trace) = battle.update(p1_choice, p2_choice)
@@ -71,4 +77,24 @@ def run_battle(log=False):
             for msg in parse_protocol(trace):
                 print("* " + msg)
 
-run_battle(log=True)
+def battle_loop(n: int) -> None:
+    for _ in range(n):
+        run_battle(log=False)
+
+# battle_loop(1000)
+
+def pchoices():
+    battle = Battle(
+        p1_team=team1,
+        p2_team=team2,
+        rng_seed=0,
+    )
+    (result, _) = battle.update(Choice.PASS(), Choice.PASS())
+    for _ in range(100000):
+        battle.possible_choices(Player.P1, result)
+
+def statcalc_loop(n: int) -> None:
+    for _ in range(n):
+        statcalc(235)
+# cProfile.run("battle_loop(1000)", sort='cumtime')
+battle_loop(10000)

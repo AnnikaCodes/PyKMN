@@ -1,5 +1,5 @@
 """This file includes common functionality like bindings for pkmn_result."""
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Tuple
 from _pkmn_engine_bindings import lib  # type: ignore
 
@@ -18,7 +18,7 @@ class ChoiceType(Enum):
     SWITCH = 2
 
 
-class ResultType(Enum):
+class ResultType(IntEnum):
     """An enum representing the result of a move in a Pokémon battle.
 
     Python version of pkmn_result_kind.
@@ -31,7 +31,7 @@ class ResultType(Enum):
     ERROR = 4
 
 
-class Player(Enum):
+class Player(IntEnum):
     """An enum representing the players in a Pokémon battle.
 
     Python version of pkmn_player.
@@ -62,7 +62,7 @@ class Result:
 
         Python version of pkmn_result_type.
         """
-        return ResultType(lib.pkmn_result_type(self._pkmn_result))
+        return lib.pkmn_result_type(self._pkmn_result)
 
     def p1_choice_type(self) -> ChoiceType:
         """Get the type of choice the first player made.

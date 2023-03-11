@@ -17,6 +17,8 @@ import random
 # optimization possible here: don't copy in intialization if it's all 0 anyway?
 # optimization possible: use indices for LAYOUT_* instead of dict keys
 
+# enum-izing moves only brings us from 822 battles/sec to 816
+
 MovePP = Tuple[str, int]
 FullMoveset = Tuple[str, str, str, str]
 Moveset = FullMoveset | Tuple[str] | Tuple[str, str] | Tuple[str, str, str]
@@ -84,20 +86,13 @@ def statcalc(
     Returns:
         int: The value of the stat
     """
-    # 64 = std.math.sqrt(exp) / 4 when exp = 65535 (0xFFFF)
-    # const core: u32 = (2 *% (@as(u32, base) +% dv)) +% @as(u32, (std.math.sqrt(exp) / 4));
-    core = (2 * (base_value + dv)) + math.trunc(math.sqrt(experience) / 4)
-    # const factor: u32 = if (std.mem.eql(u8, stat, "hp")) level + 10 else 5;
+    core = (2 * (base_value + dv)) + (math.sqrt(experience) // 4)
     factor = (level + 10) if is_HP else 5
-    # return @truncate(T, core *% @as(u32, level) / 100 +% factor);
-    return (core * math.trunc(level / 100) + factor) % 2**16
+    return int((core * (level // 100) + factor) % 2**16)
 
 
 # MAJOR TODO!
-# * incorporate ActivePokemon stuff into Battle methods
-#   https://github.com/pkmn/engine/blob/main/src/lib/gen1/data.zig#L99-L105
-# * remove subclasses and put all initialization into the Battle class for s p e e d
-# * properly handle status
+    # * properly handle status
 # * write unit tests
 # * make all constructors check array lengths, etc, for validity
 # * write a LOT of integration tests
@@ -288,35 +283,35 @@ class Battle:
     def last_selected_move(self, player: Player) -> str:
         """Get the last move selected by a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_selected_move']
         return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
     def set_last_selected_move(self, player: Player, move: str):
         """Set the last move selected by a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_selected_move']
         self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
 
     def last_used_move(self, player: Player) -> str:
         """Get the last move used by a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_used_move']
         return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
     def set_last_used_move(self, player: Player, move: str):
         """Set the last move used by a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_used_move']
         self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
 
     def active_pokemon_stats(self, player: Player) -> Gen1StatData:
         """Get the stats of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['stats']
         stats = {}
@@ -331,7 +326,7 @@ class Battle:
     def set_active_pokemon_stats(self, player: Player, new_stats: PartialGen1StatData) -> None:
         """Set the stats of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['stats']
 
@@ -344,7 +339,7 @@ class Battle:
     def active_pokemon_species(self, player: Player) -> str:
         """Get the species of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['species']
         return SPECIES_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
@@ -352,7 +347,7 @@ class Battle:
     def set_active_pokemon_species(self, player: Player, new_species: str) -> None:
         """Set the species of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
@@ -360,7 +355,7 @@ class Battle:
     def active_pokemon_types(self, player: Player) -> Tuple[str, str] | Tuple[str]:
         """Get the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['types']
         (type1, type2) = unpack_two_u4s(self._pkmn_battle.bytes[offset])
@@ -369,7 +364,7 @@ class Battle:
     def boosts(self, player: Player) -> BoostData:
         """Get the boosts of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['boosts']
         (attack, defense) = unpack_two_i4s(self._pkmn_battle.bytes[offset])
@@ -387,7 +382,7 @@ class Battle:
     def set_boosts(self, player: Player, new_boosts: PartialBoostData) -> None:
         """Set the boosts of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['boosts']
         old_boosts = self.boosts(player)
@@ -407,7 +402,7 @@ class Battle:
     def volatile(self, player: Player, volatile: VolatileFlag) -> bool:
         """Get a volatile of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         volatile_uint32_ptr = ffi.cast("uint32_t *", self._pkmn_battle.bytes[offset:(offset + 4)])
@@ -417,7 +412,7 @@ class Battle:
     def set_volatile(self, player: Player, volatile: VolatileFlag, value: bool) -> None:
         """Set a volatile of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         volatile_uint32_ptr = ffi.cast("uint32_t *", self._pkmn_battle.bytes[offset:(offset + 4)])
@@ -429,7 +424,7 @@ class Battle:
     def confusion_turns_left(self, player: Player) -> int:
         """Get the confusion counter of the active Pokémon of a player."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['confusion']
@@ -449,7 +444,7 @@ class Battle:
             "new_turns_left must be an unsigned 3-bit integer"
 
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['confusion']
@@ -470,7 +465,7 @@ class Battle:
         This counter is used for Bide and Thrash.
         """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['attacks']
@@ -493,7 +488,7 @@ class Battle:
             "new_attacks_left must be an unsigned 3-bit integer"
 
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['attacks']
@@ -518,7 +513,7 @@ class Battle:
         https://github.com/pkmn/engine/blob/main/src/lib/gen1/README.md#Volatiles
         """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
             (LAYOUT_OFFSETS['Volatiles']['state'] // 8)
@@ -538,7 +533,7 @@ class Battle:
         https://github.com/pkmn/engine/blob/main/src/lib/gen1/README.md#Volatiles
         """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
             (LAYOUT_OFFSETS['Volatiles']['state'] // 8)
@@ -547,7 +542,7 @@ class Battle:
     def substitute_hp(self, player: Player) -> int:
         """Get the HP of the Substitute up on a player's side."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
             (LAYOUT_OFFSETS['Volatiles']['substitute'] // 8)
@@ -557,7 +552,7 @@ class Battle:
     def set_substitute_hp(self, player: Player, new_hp: int) -> None:
         """Set the HP of the Substitute up on a player's side."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles'] + \
             (LAYOUT_OFFSETS['Volatiles']['substitute'] // 8)
@@ -571,7 +566,7 @@ class Battle:
     ) -> None:
         """Set the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['types']
         self._pkmn_battle.bytes[offset] = pack_two_u4s(
@@ -582,7 +577,7 @@ class Battle:
     def transformed_into(self, player: Player) -> Tuple[Player, PokemonSlot]:
         """Get the player and slot of the Pokémon that the active Pokémon transformed into."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['transform']
@@ -604,14 +599,14 @@ class Battle:
     ) -> None:
         """Set the player and slot that the active Pokémon transformed into."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['transform']
         byte_offset += bit_offset // 8
         bit_offset %= 8
 
-        transform_u4 = (((new_transformed_into[0].value) << 3) | new_transformed_into[1])
+        transform_u4 = (((new_transformed_into[0]) << 3) | new_transformed_into[1])
         self._pkmn_battle.bytes[byte_offset] = insert_unsigned_int_at_offset(
             byte=self._pkmn_battle.bytes[byte_offset],
             offset=bit_offset,
@@ -622,7 +617,7 @@ class Battle:
     def disable_data(self, player: Player) -> DisableData:
         """Get data about a Disabled move of the active Pokémon of a player."""
         base = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
 
@@ -647,7 +642,7 @@ class Battle:
     def set_disable_data(self, player: Player, new_disable_data: DisableData) -> None:
         """Set data about a Disabled move of the active Pokémon of a player."""
         base = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
 
@@ -672,7 +667,7 @@ class Battle:
     def toxic_severity(self, player: Player) -> int:
         """Get the Toxic counter of the active Pokémon of a player."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['toxic']
@@ -688,7 +683,7 @@ class Battle:
     def set_toxic_severity(self, player: Player, new_toxic_counter: int) -> None:
         """Set the Toxic counter of the active Pokémon of a player."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
         bit_offset = LAYOUT_OFFSETS['Volatiles']['toxic']
@@ -734,7 +729,7 @@ class Battle:
         Get the index within the move array of the Pokémon that was active when the move was used
         of the last move used by a given player.
         """
-        offset = LAYOUT_OFFSETS['Battle']['last_selected_indexes'] + player.value
+        offset = LAYOUT_OFFSETS['Battle']['last_selected_indexes'] + player
         return unpack_u16_from_bytes(
             self._pkmn_battle.bytes[offset],
             self._pkmn_battle.bytes[offset + 1],
@@ -743,7 +738,7 @@ class Battle:
     def current_hp(self, player: Player, pokemon: PokemonSlot) -> int:
         """Get the current HP of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['hp']
@@ -755,7 +750,7 @@ class Battle:
     def set_current_hp(self, player: Player, pokemon: PokemonSlot, new_hp: int) -> None:
         """Set the current HP of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['hp']
@@ -764,7 +759,7 @@ class Battle:
     def stats(self, player: Player, pokemon: PokemonSlot) -> Gen1StatData:
         """Get the stats of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['stats']
@@ -785,7 +780,7 @@ class Battle:
     ) -> None:
         """Set the stats of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['stats']
@@ -801,12 +796,12 @@ class Battle:
         """Get the moves of a Pokémon."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['active'] + \
                 LAYOUT_OFFSETS['ActivePokemon']['moves']
         else:
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['pokemon'] + \
                 LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
                 LAYOUT_OFFSETS['Pokemon']['moves']
@@ -823,12 +818,12 @@ class Battle:
         """Get the PP left of a Pokémon's moves."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['active'] + \
                 LAYOUT_OFFSETS['ActivePokemon']['moves']
         else:
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['pokemon'] + \
                 LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
                 LAYOUT_OFFSETS['Pokemon']['moves']
@@ -846,12 +841,12 @@ class Battle:
         """Get the moves of a Pokémon with their PP."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['active'] + \
                 LAYOUT_OFFSETS['ActivePokemon']['moves']
         else:
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['pokemon'] + \
                 LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
                 LAYOUT_OFFSETS['Pokemon']['moves']
@@ -871,12 +866,12 @@ class Battle:
         """Set the moves of a Pokémon."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['active'] + \
                 LAYOUT_OFFSETS['ActivePokemon']['moves']
         else:
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-                LAYOUT_SIZES['Side'] * player.value + \
+                LAYOUT_SIZES['Side'] * player + \
                 LAYOUT_OFFSETS['Side']['pokemon'] + \
                 LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
                 LAYOUT_OFFSETS['Pokemon']['moves']
@@ -888,7 +883,7 @@ class Battle:
     def status(self, player: Player, pokemon: PokemonSlot) -> int:
         """Get the status of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['status']
@@ -897,7 +892,7 @@ class Battle:
     def set_status(self, player: Player, pokemon: PokemonSlot, new_status: int) -> None:
         """Set the status of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['status']
@@ -907,7 +902,7 @@ class Battle:
     def species(self, player: Player, pokemon: PokemonSlot) -> str:
         """Get the species of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['species']
@@ -916,7 +911,7 @@ class Battle:
     def set_species(self, player: Player, pokemon: PokemonSlot, new_species: str) -> None:
         """Set the species of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['species']
@@ -925,7 +920,7 @@ class Battle:
     def types(self, player: Player, pokemon: PokemonSlot) -> Tuple[str, str] | Tuple[str]:
         """Get the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['types']
@@ -935,7 +930,7 @@ class Battle:
     def set_types(self, player: Player, pokemon: PokemonSlot, new_types: Tuple[str, str]) -> None:
         """Set the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['types']
@@ -947,7 +942,7 @@ class Battle:
     def level(self, player: Player, pokemon: PokemonSlot) -> int:
         """Get the level of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['level']
@@ -956,7 +951,7 @@ class Battle:
     def set_level(self, player: Player, pokemon: PokemonSlot, new_level: int) -> None:
         """Set the level of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
-            LAYOUT_SIZES['Side'] * player.value + \
+            LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['level']
@@ -1012,13 +1007,16 @@ class Battle:
             List[Choice]: The possible choices.
         """
         raw_choices = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
-        requested_kind = previous_turn_result.p1_choice_type() if player == Player.P1 \
-            else previous_turn_result.p2_choice_type()
+        # optimization: it might be faster actually to cache _pkmn_result in the battle??
+        # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
+        last_result = previous_turn_result._pkmn_result
+        requested_kind = lib.pkmn_result_p1(last_result) if player == Player.P1 \
+            else lib.pkmn_result_p2(last_result)
         num_choices = lib.pkmn_gen1_battle_choices(
             self._pkmn_battle,      # pkmn_gen1_battle *battle
-            player.value,           # pkmn_player player
+            player,           # pkmn_player player
             # optimization: is IntEnum more performant?
-            requested_kind.value,   # pkmn_choice_kind request
+            requested_kind,   # pkmn_choice_kind request
             raw_choices,            # pkmn_choice out[]
             lib.PKMN_OPTIONS_SIZE,  # size_t len
         )
