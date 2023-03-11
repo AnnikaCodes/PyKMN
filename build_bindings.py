@@ -230,13 +230,19 @@ def build_pkmn_engine() -> None:
                 pass
 
         zig_path = find_zig()
-        log(f"Building libpkmn with Zig at {zig_path}")
         args = [
             zig_path, "build", "-Dpic=true",
-            "-Dshowdown=true", "-Dtrace=true", "-Doptimize=Debug",
+            "-Dshowdown=true", "-Dtrace=true",
         ]
         if platform.system() == 'Windows':
             args.append('-Dtarget=native-native-gnu')
+        if 'PYKMN_DEBUG' in os.environ and os.environ['PYKMN_DEBUG'] != '':
+            log(f"Building libpkmn in Debug mode with Zig at {zig_path}", color=ORANGE)
+            args.append('-Doptimize=Debug')
+        else:
+            log(f"Building libpkmn in ReleaseFast mode with Zig at {zig_path}")
+            args.append('-Doptimize=ReleaseFast')
+            args.append('-Dstrip')
         subprocess.call(args, cwd="engine")
     except Exception as e:
         log(f"Failed to build libpkmn. Error: {e}", color=RED)
