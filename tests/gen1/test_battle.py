@@ -14,6 +14,8 @@ def run_first_choice(battle: Battle, result: Result) -> Result:
 
 zero_dvs: Gen1StatData = {'hp': 0, 'atk': 0, 'def': 0, 'spc': 0, 'spe': 0}
 
+# if desired, can bring back tests for Pokemon/Side stuff that were removed in refactor
+
 class TestBattle(unittest.TestCase):
     def test_active_pokemon_stats(self):
         """Tests stat-boosting moves."""
@@ -21,10 +23,13 @@ class TestBattle(unittest.TestCase):
         (result, _) = battle.update(Choice.PASS(), Choice.PASS())
 
         no_boosts = {'atk': 0, 'def': 0, 'spe': 0, 'spc': 0, 'accuracy': 0, 'evasion': 0}
-        self.assertDictEqual(battle.p1.active_pokemon_stats(), battle.p2.active_pokemon_stats())
-        self.assertDictEqual(battle.p1.active_pokemon_stats(), battle.p1.team[0].stats())
-        self.assertDictEqual(battle.p1.team[0].stats(), battle.active_pokemon_stats(Player.P1))
-        self.assertDictEqual(battle.p2.team[0].stats(), battle.active_pokemon_stats(Player.P2))
+        self.assertDictEqual(
+            battle.active_pokemon_stats(Player.P1),
+            battle.active_pokemon_stats(Player.P2),
+        )
+        self.assertDictEqual(battle.active_pokemon_stats(Player.P1), battle.stats(Player.P1, 1))
+        self.assertDictEqual(battle.stats(Player.P1, 1), battle.active_pokemon_stats(Player.P1))
+        self.assertDictEqual(battle.stats(Player.P2, 1), battle.active_pokemon_stats(Player.P2))
 
         self.assertDictEqual(battle.boosts(Player.P1), no_boosts)
         self.assertDictEqual(battle.boosts(Player.P2), no_boosts)
@@ -36,11 +41,10 @@ class TestBattle(unittest.TestCase):
         )
         self.assertDictEqual(battle.boosts(Player.P2), no_boosts)
 
-        p1_active_stats = battle.p1.active_pokemon_stats()
-        p1_original_stats = battle.p1.team[0].stats()
-        p2_active_stats = battle.p2.active_pokemon_stats()
-
-        p2_original_stats = battle.p2.team[0].stats()
+        p1_active_stats = battle.active_pokemon_stats(Player.P1)
+        p1_original_stats = battle.stats(Player.P1, pokemon=1)
+        p2_active_stats = battle.active_pokemon_stats(Player.P2)
+        p2_original_stats = battle.stats(Player.P2, pokemon=1)
 
         self.assertEqual(p1_active_stats['atk'], p1_original_stats['atk'] * 2)
         self.assertEqual(p1_active_stats['spc'], p2_original_stats['spc'])
@@ -51,16 +55,8 @@ class TestBattle(unittest.TestCase):
             self.assertEqual(p1_active_stats[unchanged_stat], p1_original_stats[unchanged_stat])
             self.assertEqual(p2_active_stats[unchanged_stat], p2_original_stats[unchanged_stat])
 
-        self.assertDictEqual(
-            battle.p1.active_pokemon_stats(),
-            battle.active_pokemon_stats(Player.P1),
-        )
-        self.assertDictEqual(
-            battle.p2.active_pokemon_stats(),
-            battle.active_pokemon_stats(Player.P2),
-        )
         battle.set_active_pokemon_stats(Player.P1, {'spc': 52, 'def': 97})
-        new_active_stats = battle.p1.active_pokemon_stats()
+        new_active_stats = battle.active_pokemon_stats(Player.P1)
         self.assertEqual(new_active_stats['spc'], 52)
         self.assertEqual(new_active_stats['def'], 97)
         for unchanged_stat in ['hp', 'atk', 'spe']:
@@ -108,23 +104,13 @@ class TestBattle(unittest.TestCase):
         battle = Battle([('Mew', ('Swords Dance', 'Surf'))], [('Mew', ('Amnesia', 'Fly'))])
         (result, _) = battle.update(Choice.PASS(), Choice.PASS())
 
-        self.assertEqual(battle.p1.last_selected_move(), battle.last_selected_move(Player.P1))
-        self.assertEqual(battle.p2.last_selected_move(), battle.last_selected_move(Player.P2))
-        self.assertEqual(battle.p1.last_used_move(), battle.last_used_move(Player.P1))
-        self.assertEqual(battle.p2.last_used_move(), battle.last_used_move(Player.P2))
-
         self.assertEqual(battle.last_selected_move(Player.P1), 'None')
         self.assertEqual(battle.last_selected_move(Player.P2), 'None')
         self.assertEqual(battle.last_used_move(Player.P1), 'None')
         self.assertEqual(battle.last_used_move(Player.P2), 'None')
 
         run_first_choice(battle, result)
-        self.assertEqual(battle.p1.last_selected_move(), battle.last_selected_move(Player.P1))
-        self.assertEqual(battle.p2.last_selected_move(), battle.last_selected_move(Player.P2))
-        self.assertEqual(battle.p1.last_used_move(), battle.last_used_move(Player.P1))
-        self.assertEqual(battle.p2.last_used_move(), battle.last_used_move(Player.P2))
-
-        # TODO: create a case were last selected and last used are different
+        # TODO: create a case where last selected and last used are different
         # optimization: put moves in an enum to remove dict lookups?
         self.assertEqual(battle.last_selected_move(Player.P1), 'Swords Dance')
         self.assertEqual(battle.last_selected_move(Player.P2), 'Amnesia')
@@ -143,8 +129,8 @@ class TestBattle(unittest.TestCase):
         (result, _) = battle.update(Choice.PASS(), Choice.PASS())
 
         initial_hp = battle.current_hp(Player.P2, 1)
-        self.assertEqual(initial_hp, battle.p2.team[0].stats()['hp'])
-        self.assertEqual(initial_hp, battle.p2.team[0].hp())
+        self.assertEqual(initial_hp, battle.stats(Player.P2, 1)['hp'])
+        self.assertEqual(initial_hp, battle.current_hp(Player.P2, 1))
         self.assertEqual(initial_hp, battle.current_hp(Player.P1, 1))
         self.assertNotEqual(initial_hp, 200)
 
@@ -192,8 +178,6 @@ class TestBattle(unittest.TestCase):
             p2_team=[('Mew', ('Surf', ))],
         )
         self.assertDictEqual(battle.stats(Player.P1, 2), stats)
-        self.assertDictEqual(battle.stats(Player.P1, 2), battle.p1.team[1].stats())
-        self.assertDictEqual(battle.stats(Player.P2, 1), battle.p2.team[0].stats())
 
         battle.set_stats(Player.P1, 2, {'hp': 89, 'atk': 35, 'spe': 12})
         self.assertDictEqual(
