@@ -40,3 +40,40 @@ class ShowdownRNG:
             int: The next number produced by the RNG.
         """
         return lib.pkmn_psrng_next(self._psrng)
+
+    def in_range(self, m: int, n: int) -> int:
+        """Get an integer from the ShowdownRNG in the given range [m, n).
+
+        Also advances the seed.
+
+        Based on Pokémon Showdown's MIT-licensed RNG implementation, but behaves differently:
+        https://github.com/smogon/pokemon-showdown/blob/master/sim/prng.ts
+
+        Args:
+            m (int): The lower bound of the range. Defaults to 0.
+            n (int): The upper bound of the range. Defaults to 1.
+
+        Returns:
+            int: The next number produced by the RNG.
+        """
+        next = self.next()
+        return int(next * (n - m) / (2**32)) + m
+
+
+    def random_chance(self, numerator: int, denominator: int) -> bool:
+        """Get a boolean from the ShowdownRNG with a numerator/denominator chance of being True.
+
+        Also advances the seed.
+
+        Based on Pokémon Showdown's MIT-licensed RNG implementation, but behaves differently:
+        https://github.com/smogon/pokemon-showdown/blob/master/sim/prng.ts
+        """
+        return self.in_range(0, denominator) < numerator
+
+    def seed(self) -> int:
+        """Get the current seed of the ShowdownRNG.
+
+        Returns:
+            int: The current seed.
+        """
+        return ffi.cast("uint64_t[1]", self._psrng)[0]
