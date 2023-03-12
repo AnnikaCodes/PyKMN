@@ -6,7 +6,7 @@ See: https://github.com/pkmn/engine/blob/main/src/test/benchmark/
 
 import sys
 import time
-from typing import List, Set, cast, TypeVar, Iterable
+from typing import List, Set, cast
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.common import ResultType, Choice, Player
 from pykmn.engine.gen1 import Battle, PokemonData, Moveset
@@ -100,8 +100,9 @@ def run(battles: int, rng_seed: int):
         duration += time.process_time_ns() - begin
         # TODO: do we need to fix the PRNG seed since it's a passed-by-value Python int?
 
+    bps = int((battles / duration) * 10**9)
     print(
-        f"Ran {battles} battles in {duration} ns ({int((battles / duration) * 10**9)} battles/sec). " +
+        f"Ran {battles} battles in {duration} ns ({bps} battles/sec). " +
         f"There were a total of {turns} turns, and the final PRNG seed was {prng.seed()}."
     )
 
