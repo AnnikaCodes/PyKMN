@@ -166,6 +166,9 @@ class Battle:
 
     def _initialize_pokemon(self, battle_offset: int, pokemon_data: PokemonData):
         """Initialize a Pokémon in a battle."""
+        self.trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOGS_SIZE)
+        self._choice_buf = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
+
         hp = None
         status = 0
         level = 100
@@ -984,12 +987,11 @@ class Battle:
             Tuple[Result, List[int]]: The result of the choice,
             and the trace as a list of protocol bytes
         """
-        trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOGS_SIZE)
         _pkmn_result = lib.pkmn_gen1_battle_update(
             self._pkmn_battle,          # pkmn_gen1_battle *battle
             p1_choice,     # pkmn_choice c1
             p2_choice,     # pkmn_choice c2
-            trace_buf,                  # uint8_t *buf
+            self.trace_buf,                  # uint8_t *buf
             lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
         )
 
@@ -1005,34 +1007,69 @@ class Battle:
                 "This should never happen; please file a bug report with PyKMN at " +
                 "https://github.com/AnnikaCodes/PyKMN/issues/new"
             )
-        return (result, trace_buf)
+        return (result, self.trace_buf)
 
     def possible_choices(
         self,
         player: Player,
         previous_turn_result: Result,
-        raw=False
-    ) -> List[Choice] | List[int]:
+    ) -> List[Choice]:
         """Get the possible choices for the given player.
 
-        You can specify raw=True to get the raw integers instead of Choice objects.
+            Args:
+            player (Player): The player to get choices for.
+            previous_turn_result (Result): The result of the previous turn
+                (the first turn should be two PASS choices).
 
-        This makes it hard to get choice data, but it can significantly increase performance
-        when used in combination with update_raw().
+        Returns:
+            List[Choice]: The possible choices.
+        """
+        # optimization: it might be faster actually to cache _pkmn_result in the battle??
+        # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
+
+        num_choices = self._fill_choice_buffer(player, previous_turn_result)
+        choices: List[Choice] = []
+        for i in range(num_choices):
+            choices.append(Choice(self._choice_buf[i]))
+        return choices
+
+    def possible_choices_raw(
+        self,
+        player: Player,
+        previous_turn_result: Result,
+    ) -> List[int]:
+        """Get the possible choices for the given player.
+
+        This method returns raw integers instead of Choice objects.
+        If you need to inspect the choice data, use possible_choices() instead.
 
         Args:
             player (Player): The player to get choices for.
             previous_turn_result (Result): The result of the previous turn
                 (the first turn should be two PASS choices).
-            raw (bool): Whether to return raw ints instead of Choice objects. Defaults to False.
 
         Returns:
-            List[Choice] | List[int]: The possible choices.
-                Will be a list of Choice objects by default, or a list of integers if raw is True.
+            List[int]: The possible choices.
         """
-        # optimization: it might be faster actually to cache _pkmn_result in the battle??
-        # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
-        raw_buf = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
+        num_choices = self._fill_choice_buffer(player, previous_turn_result)
+        return self._choice_buf[0:num_choices]
+
+
+    def _fill_choice_buffer(self, player: Player, previous_turn_result: Result) -> int:
+        """Fills the battle's choice buffer with the possible choices for the given player.
+
+        Probably don't call this.
+
+        Args:
+            player (Player): _description_
+            previous_turn_result (Result): _description_
+
+        Raises:
+            Softlock: _description_
+
+        Returns:
+            int: The number of choices
+        """
         last_result = previous_turn_result._pkmn_result
         requested_kind = lib.pkmn_result_p1(last_result) if player == Player.P1 \
             else lib.pkmn_result_p2(last_result)
@@ -1041,17 +1078,12 @@ class Battle:
             player,           # pkmn_player player
             # optimization: is IntEnum more performant?
             requested_kind,   # pkmn_choice_kind request
-            raw_buf,            # pkmn_choice out[]
+            self._choice_buf,            # pkmn_choice out[]
             lib.PKMN_OPTIONS_SIZE,  # size_t len
         )
 
         if num_choices == 0:
             raise Softlock("Zero choices are available.")
 
-        if raw:
-            return list(raw_buf[0:num_choices])
-        else:
-            choices: List[Choice] = []
-            for i in range(num_choices):
-                choices.append(Choice(raw_buf[i]))
-            return choices
+        return num_choices
+

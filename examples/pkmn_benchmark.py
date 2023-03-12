@@ -93,8 +93,8 @@ def run(battles: int, rng_seed: int):
         begin = time.process_time_ns()
         (result, _) = battle.update(c1, c2)
         while result.type() == ResultType.NONE:
-            p1_choice = random_pick(prng, battle.possible_choices(Player.P1, result, raw=True))
-            p2_choice = random_pick(prng, battle.possible_choices(Player.P2, result, raw=True))
+            p1_choice = random_pick(prng, battle.possible_choices_raw(Player.P1, result))
+            p2_choice = random_pick(prng, battle.possible_choices_raw(Player.P2, result))
             (result, _) = battle.update_raw(p1_choice, p2_choice)
         turns += battle.turn()
         duration += time.process_time_ns() - begin
