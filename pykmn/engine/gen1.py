@@ -957,12 +957,28 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['level']
         self._pkmn_battle.bytes[offset] = new_level
 
-
     def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
 
         Args:
-            choice (Choice): The choice to make.
+            p1_choice (Choice): The choice to make for player 1.
+            p2_choice (Choice): The choice to make for player 2.
+
+        Returns:
+            Tuple[Result, List[int]]: The result of the choice,
+            and the trace as a list of protocol bytes
+        """
+        return self.update_raw(p1_choice._pkmn_choice, p2_choice._pkmn_choice)
+
+    def update_raw(self, p1_choice: int, p2_choice: int) -> Tuple[Result, List[int]]:
+        """Update the battle with the given choice.
+
+        This method accepts raw integers for choices instead of Choice objects.
+        If you don't get these from possible_choices() with raw=True, things may go wrong.
+
+        Args:
+            p1_choice (int): The choice to make for player 1.
+            p2_choice (int): The choice to make for player 2.
 
         Returns:
             Tuple[Result, List[int]]: The result of the choice,
@@ -971,8 +987,8 @@ class Battle:
         trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOGS_SIZE)
         _pkmn_result = lib.pkmn_gen1_battle_update(
             self._pkmn_battle,          # pkmn_gen1_battle *battle
-            p1_choice._pkmn_choice,     # pkmn_choice c1
-            p2_choice._pkmn_choice,     # pkmn_choice c2
+            p1_choice,     # pkmn_choice c1
+            p2_choice,     # pkmn_choice c2
             trace_buf,                  # uint8_t *buf
             lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
         )
@@ -995,20 +1011,28 @@ class Battle:
         self,
         player: Player,
         previous_turn_result: Result,
-    ) -> List[Choice]:
+        raw=False
+    ) -> List[Choice] | List[int]:
         """Get the possible choices for the given player.
+
+        You can specify raw=True to get the raw integers instead of Choice objects.
+
+        This makes it hard to get choice data, but it can significantly increase performance
+        when used in combination with update_raw().
 
         Args:
             player (Player): The player to get choices for.
             previous_turn_result (Result): The result of the previous turn
                 (the first turn should be two PASS choices).
+            raw (bool): Whether to return raw ints instead of Choice objects. Defaults to False.
 
         Returns:
-            List[Choice]: The possible choices.
+            List[Choice] | List[int]: The possible choices.
+                Will be a list of Choice objects by default, or a list of integers if raw is True.
         """
-        raw_choices = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
         # optimization: it might be faster actually to cache _pkmn_result in the battle??
         # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
+        raw_buf = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
         last_result = previous_turn_result._pkmn_result
         requested_kind = lib.pkmn_result_p1(last_result) if player == Player.P1 \
             else lib.pkmn_result_p2(last_result)
@@ -1017,14 +1041,17 @@ class Battle:
             player,           # pkmn_player player
             # optimization: is IntEnum more performant?
             requested_kind,   # pkmn_choice_kind request
-            raw_choices,            # pkmn_choice out[]
+            raw_buf,            # pkmn_choice out[]
             lib.PKMN_OPTIONS_SIZE,  # size_t len
         )
 
         if num_choices == 0:
             raise Softlock("Zero choices are available.")
 
-        choices: List[Choice] = []
-        for i in range(num_choices):
-            choices.append(Choice(raw_choices[i]))
-        return choices
+        if raw:
+            return list(raw_buf[0:num_choices])
+        else:
+            choices: List[Choice] = []
+            for i in range(num_choices):
+                choices.append(Choice(raw_buf[i]))
+            return choices

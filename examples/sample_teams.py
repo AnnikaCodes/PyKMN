@@ -64,11 +64,11 @@ def run_battle(log=False):
                 battle.possible_choices(Player.P1, result)
 
 
-        p1_choice = battle.possible_choices(Player.P1, result).pop()
-        p2_choice = battle.possible_choices(Player.P2, result).pop()
-        if log:
-            print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
-        (result, trace) = battle.update(p1_choice, p2_choice)
+        p1_choices = battle.possible_choices(Player.P1, result, raw=True)
+        p2_choices = battle.possible_choices(Player.P2, result, raw=True)
+        # if log:
+        #     print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
+        (result, trace) = battle.update_raw(p1_choices.pop(), p2_choices.pop())
         # print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
         # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
         if log:
