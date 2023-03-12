@@ -32,6 +32,15 @@ assert len(species_list) == 151 + 1
 moves_list: List[str] = list(MOVES)
 assert len(moves_list) == 165
 
+def new_seed(prng: ShowdownRNG) -> int:
+    # https://github.com/pkmn/engine/blob/main/src/test/integration/common.ts#L505-L507
+    return (
+        prng.in_range(0, 0x10000) << 48 |
+        prng.in_range(0, 0x10000) << 32 |
+        prng.in_range(0, 0x10000) << 16 |
+        prng.in_range(0, 0x10000)
+    )
+
 def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
     team = []
     less_than_6 = prng.random_chance(1, 100)
@@ -46,8 +55,7 @@ def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
             if prng.random_chance(1, 5):
                 dvs[stat] = prng.in_range(1, 15 + 1) # type: ignore
             if prng.random_chance(1, 20):
-                # Stat experience is generated like this in @pkmn/engine
-                exp[stat] = prng.in_range(0, 255) ** 2 # type: ignore
+                exp[stat] = prng.in_range(0, 0xFFFF + 1) # type: ignore
 
         # 1% of the time we have <4 moves
         num_moves = prng.in_range(1, 3 + 1) if prng.random_chance(1, 100) else 4
@@ -81,20 +89,24 @@ def run(battles: int, rng_seed: int):
     turns = 0
     prng = ShowdownRNG.from_seed(rng_seed)
     for i in range(battles):
+        p1_team = generate_team(prng)
+        p2_team = generate_team(prng)
         battle = Battle(
-            p1_team=generate_team(prng),
-            p2_team=generate_team(prng),
+            p1_team=p1_team,
+            p2_team=p2_team,
             rng_seed=prng.seed(),
         )
 
         c1 = Choice.PASS()
         c2 = Choice.PASS()
+        p1_prng = ShowdownRNG.from_seed(new_seed(prng))
+        p2_prng = ShowdownRNG.from_seed(new_seed(prng))
 
         begin = time.process_time_ns()
         (result, _) = battle.update(c1, c2)
         while result.type() == ResultType.NONE:
-            p1_choice = random_pick(prng, battle.possible_choices_raw(Player.P1, result))
-            p2_choice = random_pick(prng, battle.possible_choices_raw(Player.P2, result))
+            p1_choice = random_pick(p1_prng, battle.possible_choices_raw(Player.P1, result))
+            p2_choice = random_pick(p2_prng, battle.possible_choices_raw(Player.P2, result))
             (result, _) = battle.update_raw(p1_choice, p2_choice)
         turns += battle.turn()
         duration += time.process_time_ns() - begin
