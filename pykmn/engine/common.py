@@ -1,6 +1,6 @@
 """This file includes common functionality like bindings for pkmn_result."""
 from enum import Enum, IntEnum
-from typing import Tuple
+from typing import Tuple, Union
 from _pkmn_engine_bindings import lib  # type: ignore
 
 # This file needs some testing, but I think it makes sense to test it
@@ -124,7 +124,7 @@ class Choice:
         """
         return ChoiceType(lib.pkmn_choice_type(self._pkmn_choice))
 
-    def data(self) -> int | None:
+    def data(self) -> Union[int, None]:
         """Get the data associated with the choice.
 
         Returns:

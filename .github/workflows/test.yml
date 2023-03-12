@@ -16,16 +16,26 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['CPython', 'PyPy']
 
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
 
-    - name: Install Python
+    - name: Install CPython
+      if: ${{ matrix.python == 'CPython' }}
       uses: actions/setup-python@v3
       with:
         python-version: '3.x'
+
+    - name: Install PyPy
+      if: ${{ matrix.python == 'PyPy' }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: pypy-3.8
 
     - name: Install dependencies
       run: python3 -m pip install ruff mypy build

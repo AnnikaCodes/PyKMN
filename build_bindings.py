@@ -11,6 +11,7 @@ import sys
 import hashlib
 import os
 from pathlib import Path
+from typing import Union, Tuple
 
 # from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
 MINIMUM_ZIG_MAJOR_VERSION = 0
@@ -45,7 +46,7 @@ def log(message: str, color=GREEN) -> None:
 # https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine
 
 
-def parse_zig_version(version: str) -> tuple[int, int, int, int | None]:
+def parse_zig_version(version: str) -> Tuple[int, int, int, Union[int, None]]:
     """Parse a Zig version string.
 
     Args:
@@ -73,7 +74,7 @@ def parse_zig_version(version: str) -> tuple[int, int, int, int | None]:
     return (major, minor, patch, dev)
 
 
-def is_new_enough(version: tuple[int, int, int, int | None]) -> bool:
+def is_new_enough(version: Tuple[int, int, int, Union[int, None]]) -> bool:
     """Check if a Zig version can build libpkmn based on the constants in this file.
 
     Args:

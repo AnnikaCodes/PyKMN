@@ -8,7 +8,7 @@ from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import List, Tuple, cast, TypedDict, Literal
+from typing import List, Tuple, cast, TypedDict, Literal, Union
 from enum import IntEnum
 from collections import namedtuple
 import math
@@ -21,15 +21,15 @@ import random
 
 MovePP = Tuple[str, int]
 FullMoveset = Tuple[str, str, str, str]
-Moveset = FullMoveset | Tuple[str] | Tuple[str, str] | Tuple[str, str, str]
+Moveset = Union[FullMoveset, Tuple[str], Tuple[str, str], Tuple[str, str, str]]
 SpeciesName = str
 ExtraPokemonData = TypedDict('ExtraPokemonData', {
     'hp': int, 'status': int, 'level': int, 'stats': Gen1StatData,
     'types': Tuple[str, str], 'move_pp': Tuple[int, int, int, int],
     'dvs': Gen1StatData, 'exp': Gen1StatData,
 }, total=False)
-PokemonData = Tuple[SpeciesName, Moveset] | Tuple[SpeciesName, Moveset, ExtraPokemonData]
-PokemonSlot = Literal[1] | Literal[2] | Literal[3] | Literal[4] | Literal[5] | Literal[6]
+PokemonData = Union[Tuple[SpeciesName, Moveset], Tuple[SpeciesName, Moveset, ExtraPokemonData]]
+PokemonSlot = Union[Literal[1], Literal[2], Literal[3],Literal[4], Literal[5], Literal[6]]
 BoostData = TypedDict('BoostData', {
     'atk': int,
     'def': int,
@@ -355,7 +355,7 @@ class Battle:
             LAYOUT_OFFSETS['ActivePokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def active_pokemon_types(self, player: Player) -> Tuple[str, str] | Tuple[str]:
+    def active_pokemon_types(self, player: Player) -> Union[Tuple[str, str], Tuple[str]]:
         """Get the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -565,7 +565,7 @@ class Battle:
     def set_active_pokemon_types(
         self,
         player: Player,
-        new_types: Tuple[str, str] | Tuple[str]
+        new_types: Union[Tuple[str, str], Tuple[str]]
     ) -> None:
         """Set the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -795,7 +795,7 @@ class Battle:
             offset += 2
 
     # TODO: is this the most performant way to do this? Maybe an enum or separate method?
-    def moves(self, player: Player, pokemon: PokemonSlot | Literal['Active']) -> Moveset:
+    def moves(self, player: Player, pokemon: Union[PokemonSlot, Literal['Active']]) -> Moveset:
         """Get the moves of a Pokémon."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -817,7 +817,11 @@ class Battle:
         return cast(Moveset, moves)
 
 
-    def pp_left(self, player: Player, pokemon: PokemonSlot | Literal['Active']) -> Tuple[int, ...]:
+    def pp_left(
+        self,
+        player: Player,
+        pokemon: Union[PokemonSlot, Literal['Active']]
+    ) -> Tuple[int, ...]:
         """Get the PP left of a Pokémon's moves."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -839,7 +843,7 @@ class Battle:
     def moves_with_pp(
         self,
         player: Player,
-        pokemon: PokemonSlot | Literal['Active']
+        pokemon: Union[PokemonSlot, Literal['Active']]
     ) -> Tuple[MovePP, ...]:
         """Get the moves of a Pokémon with their PP."""
         if not isinstance(pokemon, int):
@@ -863,7 +867,7 @@ class Battle:
     def set_moves(
         self,
         player: Player,
-        pokemon: PokemonSlot | Literal['Active'],
+        pokemon: Union[PokemonSlot, Literal['Active']],
         new_moves: Tuple[MovePP, MovePP, MovePP, MovePP]
     ) -> None:
         """Set the moves of a Pokémon."""
@@ -920,7 +924,7 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def types(self, player: Player, pokemon: PokemonSlot) -> Tuple[str, str] | Tuple[str]:
+    def types(self, player: Player, pokemon: PokemonSlot) -> Union[Tuple[str, str],  Tuple[str]]:
         """Get the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
