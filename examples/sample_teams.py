@@ -3,7 +3,6 @@ from pykmn.engine.gen1 import Battle, Player, Choice, statcalc
 from pykmn.engine.common import ResultType
 from pykmn.engine.protocol import parse_protocol
 
-import random
 import cProfile
 
 def hexfmt(b):
@@ -96,5 +95,5 @@ def pchoices():
 def statcalc_loop(n: int) -> None:
     for _ in range(n):
         statcalc(235)
-# cProfile.run("battle_loop(1000)", sort='cumtime')
-battle_loop(10000)
+cProfile.run("battle_loop(1000)", sort='cumtime')
+# battle_loop(10000)
