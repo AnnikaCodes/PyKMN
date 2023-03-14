@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1678834182134,
+  "lastUpdate": 1678834183173,
   "repoUrl": "https://github.com/AnnikaCodes/PyKMN",
   "entries": {
     "battles/second @pkmn benchmark": [
@@ -115,6 +115,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "PyKMN FFI Benchmark",
             "value": 12924,
+            "unit": "battles/second"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "annika0uwu@gmail.com",
+            "name": "Annika L",
+            "username": "AnnikaCodes"
+          },
+          "committer": {
+            "email": "annika0uwu@gmail.com",
+            "name": "Annika L",
+            "username": "AnnikaCodes"
+          },
+          "distinct": true,
+          "id": "e159b9a7ffb9a2259c273011374b512b6d303c73",
+          "message": "another commit to see about benchmark variance",
+          "timestamp": "2023-03-14T15:47:57-07:00",
+          "tree_id": "87230b0e2ab9e6881a9d406140af9c7d5cb3100d",
+          "url": "https://github.com/AnnikaCodes/PyKMN/commit/e159b9a7ffb9a2259c273011374b512b6d303c73"
+        },
+        "date": 1678834181752,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "PyKMN FFI Benchmark",
+            "value": 14570,
             "unit": "battles/second"
           }
         ]
