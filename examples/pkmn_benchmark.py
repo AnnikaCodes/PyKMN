@@ -114,10 +114,13 @@ def run(battles: int, rng_seed: int):
         # TODO: do we need to fix the PRNG seed since it's a passed-by-value Python int?
 
     bps = int((battles / duration) * 10**9)
-    print(
-        f"Ran {battles} battles in {duration} ns ({bps} battles/sec). " +
-        f"There were a total of {turns} turns, and the final PRNG seed was {prng.seed()}."
-    )
+    if len(sys.argv) > 3 and sys.argv[3] == '--benchmark':
+        print('[{"name":"PyKMN FFI Benchmark","unit":"battles/second","value":' + str(bps) + '}]')
+    else:
+        print(
+            f"Ran {battles} battles in {duration} ns ({bps} battles/sec). " +
+            f"There were a total of {turns} turns, and the final PRNG seed was {prng.seed()}."
+        )
 
 # import cProfile
 # cProfile.run('run(battles, rng_seed)', sort='cumtime')

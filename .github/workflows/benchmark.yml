@@ -1,9 +1,7 @@
-name: Lint & Test
+name: Benchmark
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
     inputs:
@@ -13,26 +11,22 @@ on:
         required: false
         default: false
 
+permissions:
+  # deployments permission to deploy GitHub pages website
+  deployments: write
+  # contents permission to update benchmark contents in gh-pages branch
+  contents: write
+
 jobs:
-  lint-test:
+  benchmark:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python: ['CPython', 'PyPy']
 
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
 
-    - name: Install CPython
-      if: ${{ matrix.python == 'CPython' }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.x'
-
     - name: Install PyPy
-      if: ${{ matrix.python == 'PyPy' }}
       uses: actions/setup-python@v3
       with:
         python-version: pypy-3.8
@@ -46,48 +40,22 @@ jobs:
       uses: mxschmitt/action-tmate@v3
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
 
-    - name: Lint
-      run: ruff check .
-
-    - name: Check types
-      run: mypy .
-
     - name: Build PyKMN
       run: python3 -m build
 
     - name: Install PyKMN
       run: python3 -m pip install --find-links=dist pykmn
 
-    - name: Run unit tests
-      run: python3 -m coverage run -m unittest discover tests
-
-    - name: Generate test coverage report
-      run: python3 -m coverage xml --include='pykmn/*'
-
-    - name: Upload test coverage report
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage.xml
-
     - name: Run benchmark
-      if: ${{ matrix.python == 'PyPy' }}
       run: python3 examples/pkmn_benchmark.py 10000 45643692425 --benchmark | tee benchmark.txt
 
-    - name: Download previous benchmark data
-      if: ${{ matrix.python == 'PyPy' }}
-      uses: actions/cache@v1
-      with:
-        path: ./cache
-        key: ${{ runner.os }}-benchmark
-
     - name: Store benchmark result
-      if: ${{ matrix.python == 'PyPy' }}
       uses: benchmark-action/github-action-benchmark@v1
       with:
         name: "${{ matrix.python }} battles/second @pkmn benchmark"
         tool: 'customBiggerIsBetter'
         output-file-path: benchmark.txt
-        external-data-json-path: ./cache/benchmark-data.json
         fail-on-alert: false
         summary-always: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
