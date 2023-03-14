@@ -1,7 +1,7 @@
 """Tests the Gen 1 Battle class."""
 
 import unittest
-from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag, DisableData
+from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag, DisableData, Status
 from pykmn.data.gen1 import Gen1StatData
 from pykmn.engine.protocol import parse_protocol
 from pykmn.engine.libpkmn import libpkmn_no_trace, libpkmn_showdown_no_trace, libpkmn_trace, \
@@ -260,12 +260,12 @@ class TestBattle(unittest.TestCase):
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
-            self.assertEqual(battle.status(Player.P1, 1), 0)
-            self.assertEqual(battle.status(Player.P2, 1), 0)
+            self.assertEqual(battle.status(Player.P1, 1), Status.HEALTHY)
+            self.assertEqual(battle.status(Player.P2, 1), Status.HEALTHY)
 
             result = run_first_choice(battle, result)
             # P2 is badly poisoned
-            self.assertEqual(battle.status(Player.P2, 1), 8) # Toxic
+            self.assertEqual(battle.status(Player.P2, 1), Status.POISON) # Toxic
             self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Toxic))
             self.assertEqual(battle.toxic_severity(Player.P2), 0)
 
@@ -276,11 +276,11 @@ class TestBattle(unittest.TestCase):
 
             result = run_first_choice(battle, result)
             self.assertEqual(battle.toxic_severity(Player.P2), 2)
-            self.assertEqual(battle.status(Player.P2, 1), 8) # Toxic
+            self.assertEqual(battle.status(Player.P2, 1), Status.POISON)
 
-            battle.set_status(Player.P1, 1, 32)
-            self.assertEqual(battle.status(Player.P1, 1), 32)
-            self.assertEqual(battle.status(Player.P2, 1), 8)
+            battle.set_status(Player.P1, 1, Status.FREEZE)
+            self.assertEqual(battle.status(Player.P1, 1), Status.FREEZE)
+            self.assertEqual(battle.status(Player.P2, 1), Status.POISON)
 
             battle.set_toxic_severity(Player.P2, 5)
             self.assertEqual(battle.toxic_severity(Player.P2), 5)

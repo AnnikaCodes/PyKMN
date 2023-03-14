@@ -14,6 +14,82 @@ from collections import namedtuple
 import math
 import random
 
+"""Pythonic API to get info about a Pokémon status."""
+class Status(IntEnum):
+    HEALTHY = 0
+    POISON = 1 << 3
+    BURN = 1 << 4
+    FREEZE = 1 << 5
+    PARALYSIS = 1 << 6
+
+    def __init__(self, raw_status: int):
+        self._value = raw_status
+
+    def is_asleep(self) -> bool:
+        """Returns whether the Pokémon is asleep.
+
+        Returns:
+            bool: _description_
+        """
+        return self.sleep_duration() != 0
+
+    def sleep_duration(self) -> int:
+        """Returns the number of turns the Pokémon will be asleep for.
+
+        Returns 0 if the Pokémon isn't asleep.
+
+        Returns:
+            int: _description_
+        """
+        return self._value & 0b111
+
+    def is_healthy(self) -> bool:
+        """Returns whether the Pokémon is healthy.
+
+        Returns:
+            bool: _description_
+        """
+        return self._value == Status.HEALTHY
+
+    @staticmethod
+    def SLEEP(duration: int) -> int:
+        """Returns the raw status value for a sleeping Pokémon.
+
+        Args:
+            duration (int): The duration of the sleep.
+
+        Returns:
+            int: _description_
+        """
+        return duration
+
+    @staticmethod
+    def SELF_INFLICTED_SLEEP(duration: int) -> int:
+        """Returns the raw status value for a self-inflicted sleep.
+
+        Args:
+            duration (int): The duration of the sleep.
+
+        Returns:
+            int: _description_
+        """
+        return 0x80 | duration
+
+    def __repr__(self) -> str:
+        if self._value == Status.BURN:
+            return "Status(burned)"
+        elif self._value == Status.FREEZE:
+            return "Status(frozen)"
+        elif self._value == Status.PARALYSIS:
+            return "Status(paralyzed)"
+        elif self._value == Status.POISON:
+            return "Status(poisoned)"
+        elif self.is_healthy():
+            return "Status(healthy)"
+        else:
+            sleep_duration = self.sleep_duration()
+            return f"Status(sleeping for {sleep_duration} turns)"
+
 # optimization possible here: don't copy in intialization if it's all 0 anyway?
 # optimization possible: use indices for LAYOUT_* instead of dict keys
 
@@ -24,7 +100,7 @@ FullMoveset = Tuple[str, str, str, str]
 Moveset = Union[FullMoveset, Tuple[str], Tuple[str, str], Tuple[str, str, str]]
 SpeciesName = str
 ExtraPokemonData = TypedDict('ExtraPokemonData', {
-    'hp': int, 'status': int, 'level': int, 'stats': Gen1StatData,
+    'hp': int, 'status': Status, 'level': int, 'stats': Gen1StatData,
     'types': Tuple[str, str], 'move_pp': Tuple[int, int, int, int],
     'dvs': Gen1StatData, 'exp': Gen1StatData,
 }, total=False)
@@ -238,7 +314,7 @@ class Battle:
             if 'hp' in extra_data:
                 hp = extra_data['hp']
             if 'status' in extra_data:
-                status = extra_data['status']
+                status = extra_data['status']._value
             if 'level' in extra_data:
                 level = extra_data['level']
             if 'stats' in extra_data:
@@ -946,16 +1022,16 @@ class Battle:
             self._pkmn_battle.bytes[offset + i*2] = MOVE_IDS[move]
             self._pkmn_battle.bytes[offset + i*2 + 1] = pp
 
-    def status(self, player: Player, pokemon: PokemonSlot) -> int:
+    def status(self, player: Player, pokemon: PokemonSlot) -> Status:
         """Get the status of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['status']
-        return self._pkmn_battle.bytes[offset]
+        return Status(self._pkmn_battle.bytes[offset])
 
-    def set_status(self, player: Player, pokemon: PokemonSlot, new_status: int) -> None:
+    def set_status(self, player: Player, pokemon: PokemonSlot, new_status: Status) -> None:
         """Set the status of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -963,7 +1039,6 @@ class Battle:
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['status']
         self._pkmn_battle.bytes[offset] = new_status
-
     # optimization: make Species an enum to avoid lookups
     def species(self, player: Player, pokemon: PokemonSlot) -> str:
         """Get the species of a Pokémon."""
