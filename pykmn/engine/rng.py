@@ -1,5 +1,5 @@
 """Python wrappers for libpkmn's random number generation features."""
-from _pkmn_engine_bindings import ffi, lib  # type: ignore # noqa: F401
+from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 
 
 class ShowdownRNG:
@@ -9,7 +9,12 @@ class ShowdownRNG:
     but is most similar to the cartridge RNG in Generations V and VI.
     """
 
-    def __init__(self, _pkmn_psrng, seed: int) -> None:
+    def __init__(
+        self,
+        _pkmn_psrng,
+        seed: int,
+        libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
+    ) -> None:
         """Create a new ShowdownRNG instance with the given seed.
 
         Args:
@@ -17,10 +22,16 @@ class ShowdownRNG:
         """
         # pointer to a pkmn_psrng / PKMN_OPAQUE(PKMN_PSRNG_SIZE) / struct { uint8_t bytes[8]; }
         self._psrng = _pkmn_psrng
-        lib.pkmn_psrng_init(self._psrng, seed)
+        self._libpkmn = libpkmn
+        ShowdownRNG.initialize(self._psrng, seed, libpkmn=libpkmn)
+
 
     @staticmethod
-    def from_seed(seed: int):
+    def initialize(bytes, seed: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace) -> None:
+        libpkmn.lib.pkmn_psrng_init(bytes, seed)
+
+    @staticmethod
+    def from_seed(seed: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace):
         """Create a new ShowdownRNG instance with the given seed.
 
         Args:
@@ -29,7 +40,7 @@ class ShowdownRNG:
         Returns:
             ShowdownRNG: The new RNG instance.
         """
-        return ShowdownRNG(ffi.new("pkmn_psrng *"), seed)
+        return ShowdownRNG(libpkmn.ffi.new("pkmn_psrng *"), seed, libpkmn=libpkmn)
 
     def next(self) -> int:
         """Get the next number from the ShowdownRNG.
@@ -39,7 +50,7 @@ class ShowdownRNG:
         Returns:
             int: The next number produced by the RNG.
         """
-        return lib.pkmn_psrng_next(self._psrng)
+        return self._libpkmn.lib.pkmn_psrng_next(self._psrng)
 
     def in_range(self, m: int, n: int) -> int:
         """Get an integer from the ShowdownRNG in the given range [m, n).
@@ -76,4 +87,4 @@ class ShowdownRNG:
         Returns:
             int: The current seed.
         """
-        return ffi.cast("uint64_t[1]", self._psrng)[0]
+        return self._libpkmn.ffi.cast("uint64_t[1]", self._psrng)[0]

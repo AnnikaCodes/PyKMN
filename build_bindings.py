@@ -1,4 +1,4 @@
-"""Builds the importable _pkmn_engine_bindings module."""
+"""Builds the importable modules that bind libpkmn."""
 
 from cffi import FFI
 import shutil
@@ -11,7 +11,7 @@ import sys
 import hashlib
 import os
 from pathlib import Path
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 
 # from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
 MINIMUM_ZIG_MAJOR_VERSION = 0
@@ -25,7 +25,7 @@ GREEN = '\033[92m'
 ORANGE = '\033[93m'
 RED = '\033[91m'
 
-downloaded_zig = False
+downloaded_zig = ""
 
 indent = 1
 
@@ -126,6 +126,8 @@ def find_zig() -> str:
         str: the path to a usable Zig executable
     """
     global downloaded_zig
+    if downloaded_zig != "":
+        return downloaded_zig
     log("Looking for a Zig compiler...")
     system_zig = shutil.which("zig")
     if system_zig is not None:
@@ -139,7 +141,6 @@ def find_zig() -> str:
                 color=ORANGE,
             )
 
-    downloaded_zig = True
     log("Fetching Zig download index")
     zig_download_index = requests.get(ZIG_DOWNLOAD_INDEX_URL).json()
     newest_version = sorted(
@@ -203,19 +204,19 @@ def find_zig() -> str:
     os.unlink(tarball_name)
 
     zig_directory = tarball_name[0:-4] if tarball_name.endswith(".zip") else tarball_name[0:-7]
-    return os.path.join(os.getcwd(), "zig-toolchain", zig_directory, "zig")
+    downloaded_zig = os.path.join(os.getcwd(), "zig-toolchain", zig_directory, "zig")
+    return downloaded_zig
 
 
-def build_pkmn_engine() -> None:
+def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
     """Build libpkmn, populating the zig-out directory with a library file."""
-    output_path = Path("engine/zig-out/lib")
     try:
-        # TODO: support -Dshowdown, -Dtrace
-        if output_path.exists():
+        lib_dir = Path(os.path.join(out_dir, "lib"))
+        if lib_dir.exists():
             # check to see if we need to rebuild
             try:
-                library_file = os.listdir(output_path)[0]
-                library_mtime = os.path.getmtime(os.path.join(output_path, library_file))
+                library_file = os.listdir(lib_dir)[0]
+                library_mtime = os.path.getmtime(os.path.join(lib_dir, library_file))
                 source_mtime = max(
                     max(os.path.getmtime(root) for root, _, _ in os.walk('engine/src')),
                     os.path.getmtime('engine/build.zig'),
@@ -233,15 +234,18 @@ def build_pkmn_engine() -> None:
         zig_path = find_zig()
         args = [
             zig_path, "build", "-Dpic=true",
-            "-Dshowdown=true", "-Dtrace=true",
-        ]
+            "--prefix", out_dir,
+        ] + options
         if platform.system() == 'Windows':
             args.append('-Dtarget=native-native-gnu')
         if 'PYKMN_DEBUG' in os.environ and os.environ['PYKMN_DEBUG'] != '':
-            log(f"Building libpkmn in Debug mode with Zig at {zig_path}", color=ORANGE)
+            log(
+                f"Building libpkmn in Debug mode with flags {options} with Zig at {zig_path}",
+                color=ORANGE
+            )
             args.append('-Doptimize=Debug')
         else:
-            log(f"Building libpkmn in ReleaseFast mode with Zig at {zig_path}")
+            log(f"Building libpkmn with flags {options} with Zig at {zig_path}")
             args.append('-Doptimize=ReleaseFast')
             args.append('-Dstrip')
         subprocess.call(args, cwd="engine")
@@ -280,8 +284,6 @@ def simplify_pkmn_header(header_text: str) -> str:
     )
 
 
-build_pkmn_engine()
-
 # Copy data json in
 data_folder = os.path.join(os.getcwd(), "engine", "src", "data")
 
@@ -291,25 +293,40 @@ for json_file in ["data.json", "protocol.json", "layout.json"]:
         os.path.join(os.getcwd(), "pykmn", "data", json_file)
     )
 
-ffibuilder = FFI()
-zig_out_path = os.path.join(os.getcwd(), "engine", "zig-out")
-pkmn_h_path = os.path.join(zig_out_path, "include", "pkmn.h")
+libpkmn_showdown_trace = FFI()
+libpkmn_showdown_no_trace = FFI()
+libpkmn_trace = FFI()
+libpkmn_no_trace = FFI()
+for (ffi, name, options) in [
+    (libpkmn_showdown_trace, "libpkmn_showdown_trace", ["-Dshowdown=true", "-Dtrace=true"]),
+    (libpkmn_showdown_no_trace, "libpkmn_showdown_no_trace", ["-Dshowdown=true", "-Dtrace=false"]),
+    (libpkmn_trace, "libpkmn_trace", ["-Dshowdown=false", "-Dtrace=true"]),
+    (libpkmn_no_trace, "libpkmn_no_trace", ["-Dshowdown=false", "-Dtrace=false"]),
+]:
+        log(f"Building {name} bindings")
+        output_dir = os.path.join(os.getcwd(), "engine", "zig-out", name)
+        build_pkmn_engine(output_dir, options)
 
-log("Building bindings")
-header_text = open(pkmn_h_path, 'r').read()
-ffibuilder.cdef(simplify_pkmn_header(header_text))
-ffibuilder.set_source(
-    "_pkmn_engine_bindings",
-    f"#include \"{pkmn_h_path}\"",
-    libraries=['pkmn-showdown'],
-    library_dirs=[os.path.join(zig_out_path, "lib")],
-    extra_compile_args=["-fPIC", "-shared"],
-    extra_link_args=["-fPIC"],
-)
+        pkmn_h_path = os.path.join(output_dir, "include", "pkmn.h")
+        has_showdown = "-Dshowdown=true" in options
+
+        header_text = open(pkmn_h_path, 'r').read()
+        bonus_headers = (
+            f"\n#define IS_SHOWDOWN_COMPATIBLE {1 if has_showdown else 0}" +
+            f"\n#define HAS_TRACE {1 if '-Dtrace=true' in options else 0}"
+        )
+
+        ffi.cdef(simplify_pkmn_header(header_text) + bonus_headers)
+
+        ffi.set_source(
+            name,
+            f"#include \"{pkmn_h_path}\"\n" + bonus_headers,
+            libraries=['pkmn-showdown' if has_showdown else 'pkmn'],
+            library_dirs=[os.path.join(output_dir, "lib")],
+            extra_compile_args=["-fPIC", "-shared"],
+            extra_link_args=["-fPIC"],
+        )
 
 if downloaded_zig:
     log("Removing Zig toolchain")
     shutil.rmtree("zig-toolchain")
-
-if __name__ == "__main__":
-    ffibuilder.compile(verbose=True)

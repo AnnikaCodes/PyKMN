@@ -3,6 +3,7 @@ include engine/*
 include pykmn/data/data.json
 include pykmn/data/protocol.json
 include pykmn/data/layout.json
+include libpkmn_*.so
 recursive-include engine/src *
 
 recursive-exclude engine/zig-out *

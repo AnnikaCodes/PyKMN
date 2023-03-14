@@ -2,4 +2,6 @@
 
 ruff . && # lint
 mypy . && # check types
-python3 -m unittest discover tests # run unit tests
+pushd pykmn
+pypy -m unittest discover ../tests # run unit tests
+popd

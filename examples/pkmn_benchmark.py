@@ -46,7 +46,7 @@ def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
     less_than_6 = prng.random_chance(1, 100)
     n = prng.in_range(1, 5 + 1) if less_than_6 else 6
     for _ in range(n):
-        species = species_list[prng.in_range(0, 151 + 1)]
+        species = species_list[prng.in_range(1, 151 + 1)]
         level_less_than_100 = prng.random_chance(1, 20)
         level = prng.in_range(1, 99 + 1) if level_less_than_100 else 100
         dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15}
@@ -99,6 +99,7 @@ def run(battles: int, rng_seed: int):
 
         c1 = Choice.PASS()
         c2 = Choice.PASS()
+
         p1_prng = ShowdownRNG.from_seed(new_seed(prng))
         p2_prng = ShowdownRNG.from_seed(new_seed(prng))
 

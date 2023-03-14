@@ -22,5 +22,8 @@ dependencies = ["cffi>=1.15.1"]
 requires = ["setuptools>=61.0", "cffi>=1.15.1", "requests>=2.28.2"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+py-modules = ["pykmn.engine", "pykmn.data"]
+
 [tool.ruff]
 line-length = 100

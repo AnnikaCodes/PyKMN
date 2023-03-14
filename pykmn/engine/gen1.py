@@ -1,5 +1,5 @@
 """Battle simulation for Generation I."""
-from _pkmn_engine_bindings import lib, ffi  # type: ignore
+from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
     pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s, \
     pack_two_i4s, unpack_two_i4s, insert_unsigned_int_at_offset, extract_unsigned_int_at_offset \
@@ -104,6 +104,8 @@ def statcalc(
 
 # Optimization: remove debug asserts
 
+Gen1RNGSeed = List[int]
+
 class Battle:
     """A Generation I Pokémon battle."""
 
@@ -119,10 +121,33 @@ class Battle:
         last_damage: int = 0,
         p1_move_idx: int = 0,
         p2_move_idx: int = 0,
-        rng_seed: int = random.randrange(0, 2**64),
+        rng_seed: Union[int, Gen1RNGSeed, None] = None,
+        libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
     ):
-        """Create a new Battle object."""
-        self._pkmn_battle = ffi.new("pkmn_gen1_battle *")
+        """Initialize a new battle.
+
+        Args:
+            p1_team (List[PokemonData]): Player 1's team.
+            p2_team (List[PokemonData]): Player 2's team.
+            p1_last_selected_move (str, optional): Player 1's last selected move. Defaults to None.
+            p1_last_used_move (str, optional): Player 1's last used move. Defaults to None.
+            p2_last_selected_move (str, optional): Player 2's last selected move. Defaults to None.
+            p2_last_used_move (str, optional): Player 2's last used move. Defaults to None.
+            start_turn (int, optional): The turn the battle starts on. Defaults to 0.
+            last_damage (int, optional): The last damage dealt in the battle. Defaults to 0.
+            p1_move_idx (int, optional): The last move index selected by Player 1. Defaults to 0.
+            p2_move_idx (int, optional): The last move index selected by Player 2. Defaults to 0.
+            rng_seed (int, optional): The seed to initialize the battle's RNG with.
+                Defaults to a random seed.
+                If a non-Showdown-compatible libpkmn is provided,
+                you must provide a list of 10 integers instead.
+                If you provide a list of integers and a Showdown-compatible libpkmn,
+                or don't specify a libpkmn, an exception will be raised.
+            libpkmn (LibpkmnBinding, optional): Defaults to libpkmn_showdown_trace.
+        """
+        # optimization: is it faster to not put this on the Battle class?
+        self._libpkmn = libpkmn
+        self._pkmn_battle = self._libpkmn.ffi.new("pkmn_gen1_battle *")
 
         # Initialize the sides
         p1_side_start = LAYOUT_OFFSETS['Battle']['sides']
@@ -153,21 +178,49 @@ class Battle:
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(last_damage)
         offset += 2
 
-        # TODO: support non -Dshowdown here
-        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p1_move_idx)
-        offset += 2
-        self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p2_move_idx)
-        offset += 2
+        if self._libpkmn.lib.IS_SHOWDOWN_COMPATIBLE == 1:
+            # Showdown-compatible initialization for move indexes and RNG
+            self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p1_move_idx)
+            offset += 2
+            self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(p2_move_idx)
+            offset += 2
 
-        self.rng = ShowdownRNG(ffi.cast(
-            "pkmn_psrng *",
-            self._pkmn_battle.bytes[offset:(offset + lib.PKMN_PSRNG_SIZE)],
-        ), rng_seed)
+            if rng_seed is None:
+                rng_seed = random.randrange(2**64)
+            elif isinstance(rng_seed, list):
+                raise Exception(
+                    "Cannot provide a list as RNG seed to a Showdown-compatible libpkmn."
+                )
+
+            ShowdownRNG.initialize(bytes=self._libpkmn.ffi.cast(
+                "pkmn_psrng *",
+                self._pkmn_battle.bytes[offset:(offset + self._libpkmn.lib.PKMN_PSRNG_SIZE)],
+            ), seed=rng_seed, libpkmn=self._libpkmn)
+        else:
+            # libpkmn (no Showdown compatibility) initialization for move indexes RNG
+            self._pkmn_battle.bytes[offset] = pack_two_u4s(p1_move_idx, p2_move_idx)
+            offset += 1
+            assert offset == LAYOUT_OFFSETS['Battle']['rng'], \
+                f"offset {offset} != {LAYOUT_OFFSETS['Battle']['rng']}"
+
+            if rng_seed is None:
+                for i in range(10):
+                    self._pkmn_battle.bytes[offset + i] = random.randrange(2**8)
+            elif isinstance(rng_seed, int):
+                raise Exception(
+                    "Cannot provide an integer as RNG seed to a non-Showdown-compatible libpkmn."
+                )
+            else:
+                for (i, seed) in enumerate(rng_seed):
+                    self._pkmn_battle.bytes[offset + i] = seed
 
     def _initialize_pokemon(self, battle_offset: int, pokemon_data: PokemonData):
         """Initialize a Pokémon in a battle."""
-        self.trace_buf = ffi.new("uint8_t[]", lib.PKMN_GEN1_LOGS_SIZE)
-        self._choice_buf = ffi.new("pkmn_choice[]", lib.PKMN_OPTIONS_SIZE)
+        self.trace_buf = self._libpkmn.ffi.new("uint8_t[]", self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE)
+        self._choice_buf = self._libpkmn.ffi.new(
+            "pkmn_choice[]",
+            self._libpkmn.lib.PKMN_OPTIONS_SIZE,
+        )
 
         hp = None
         status = 0
@@ -408,7 +461,10 @@ class Battle:
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
-        volatile_uint32_ptr = ffi.cast("uint32_t *", self._pkmn_battle.bytes[offset:(offset + 4)])
+        volatile_uint32_ptr = self._libpkmn.ffi.cast(
+            "uint32_t *",
+            self._pkmn_battle.bytes[offset:(offset + 4)],
+        )
         # https://stackoverflow.com/questions/9298865/get-n-th-bit-of-an-integer
         return not not(volatile_uint32_ptr[0] & (1 << volatile))
 
@@ -418,7 +474,10 @@ class Battle:
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
             LAYOUT_OFFSETS['ActivePokemon']['volatiles']
-        volatile_uint32_ptr = ffi.cast("uint32_t *", self._pkmn_battle.bytes[offset:(offset + 4)])
+        volatile_uint32_ptr = self._libpkmn.ffi.cast(
+            "uint32_t *",
+            self._pkmn_battle.bytes[offset:(offset + 4)],
+        )
         if value:
             volatile_uint32_ptr[0] |= (1 << volatile)
         else:
@@ -991,15 +1050,15 @@ class Battle:
             Tuple[Result, List[int]]: The result of the choice,
             and the trace as a list of protocol bytes
         """
-        _pkmn_result = lib.pkmn_gen1_battle_update(
+        _pkmn_result = self._libpkmn.lib.pkmn_gen1_battle_update(
             self._pkmn_battle,          # pkmn_gen1_battle *battle
             p1_choice,     # pkmn_choice c1
             p2_choice,     # pkmn_choice c2
             self.trace_buf,                  # uint8_t *buf
-            lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
+            self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
         )
 
-        result = Result(_pkmn_result)
+        result = Result(_pkmn_result, libpkmn=self._libpkmn)
         if result.is_error():
             # per pkmn.h:
             # This can only happen if libpkmn was built with trace logging enabled and the buffer
@@ -1034,7 +1093,7 @@ class Battle:
         num_choices = self._fill_choice_buffer(player, previous_turn_result)
         choices: List[Choice] = []
         for i in range(num_choices):
-            choices.append(Choice(self._choice_buf[i]))
+            choices.append(Choice(self._choice_buf[i], libpkmn=self._libpkmn))
         return choices
 
     def possible_choices_raw(
@@ -1075,15 +1134,15 @@ class Battle:
             int: The number of choices
         """
         last_result = previous_turn_result._pkmn_result
-        requested_kind = lib.pkmn_result_p1(last_result) if player == Player.P1 \
-            else lib.pkmn_result_p2(last_result)
-        num_choices = lib.pkmn_gen1_battle_choices(
+        requested_kind = self._libpkmn.lib.pkmn_result_p1(last_result) if player == Player.P1 \
+            else self._libpkmn.lib.pkmn_result_p2(last_result)
+        num_choices = self._libpkmn.lib.pkmn_gen1_battle_choices(
             self._pkmn_battle,      # pkmn_gen1_battle *battle
             player,           # pkmn_player player
             # optimization: is IntEnum more performant?
             requested_kind,   # pkmn_choice_kind request
             self._choice_buf,            # pkmn_choice out[]
-            lib.PKMN_OPTIONS_SIZE,  # size_t len
+            self._libpkmn.lib.PKMN_OPTIONS_SIZE,  # size_t len
         )
 
         if num_choices == 0:

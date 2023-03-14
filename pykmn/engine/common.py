@@ -1,7 +1,7 @@
 """This file includes common functionality like bindings for pkmn_result."""
 from enum import Enum, IntEnum
 from typing import Tuple, Union
-from _pkmn_engine_bindings import lib  # type: ignore
+from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 
 # This file needs some testing, but I think it makes sense to test it
 # along with the battle simulation tests.
@@ -49,41 +49,42 @@ class Result:
     Consumers of the pykmn library shouldn't need to construct this class themselves.
     """
 
-    def __init__(self, _pkmn_result: int):
+    def __init__(self, _pkmn_result: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace):
         """Create a new Result object.
 
         Args:
             _pkmn_result (int): The value of the C pkmn_result type.
         """
         self._pkmn_result = _pkmn_result
+        self._libpkmn = libpkmn
 
     def type(self) -> ResultType:
         """Get the type of result.
 
         Python version of pkmn_result_type.
         """
-        return lib.pkmn_result_type(self._pkmn_result)
+        return self._libpkmn.lib.pkmn_result_type(self._pkmn_result)
 
     def p1_choice_type(self) -> ChoiceType:
         """Get the type of choice the first player made.
 
         Python version of pkmn_result_p1.
         """
-        return ChoiceType(lib.pkmn_result_p1(self._pkmn_result))
+        return ChoiceType(self._libpkmn.lib.pkmn_result_p1(self._pkmn_result))
 
     def p2_choice_type(self) -> ChoiceType:
         """Get the type of choice the second player made.
 
         Python version of pkmn_result_p2.
         """
-        return ChoiceType(lib.pkmn_result_p2(self._pkmn_result))
+        return ChoiceType(self._libpkmn.lib.pkmn_result_p2(self._pkmn_result))
 
     def is_error(self) -> bool:
         """Check if the result is an error.
 
         Python version of pkmn_error.
         """
-        return lib.pkmn_error(self._pkmn_result)
+        return self._libpkmn.lib.pkmn_error(self._pkmn_result)
 
     def __repr__(self) -> str:
         """Provide a string representation of the Result."""
@@ -102,7 +103,7 @@ class Choice:
     use the `possible_choices` method of the Battle class for the generation they are simulating.
     """
 
-    def __init__(self, _pkmn_choice: int):
+    def __init__(self, _pkmn_choice: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace):
         """
         DON'T CALL THIS CONSTRUCTOR.
 
@@ -111,6 +112,7 @@ class Choice:
         Use the `possible_choices` method of the Battle class to get Choice objects.
         """
         self._pkmn_choice = _pkmn_choice  # uint8_t
+        self._libpkmn = libpkmn
 
     @staticmethod
     def PASS():
@@ -122,7 +124,7 @@ class Choice:
 
         Python version of pkmn_choice_type.
         """
-        return ChoiceType(lib.pkmn_choice_type(self._pkmn_choice))
+        return ChoiceType(self._libpkmn.lib.pkmn_choice_type(self._pkmn_choice))
 
     def data(self) -> Union[int, None]:
         """Get the data associated with the choice.
@@ -132,7 +134,7 @@ class Choice:
         """
         if self.type() == ChoiceType.PASS:
             return None
-        return lib.pkmn_choice_data(self._pkmn_choice)
+        return self._libpkmn.lib.pkmn_choice_data(self._pkmn_choice)
 
     def __repr__(self) -> str:
         """Provide a string representation of the Choice."""

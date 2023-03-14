@@ -43,7 +43,6 @@ def run_battle(log=False):
     battle = Battle(
         p1_team=team1,
         p2_team=team2,
-        rng_seed=0,
     )
     # slots = ([p.name for p in team1], [p.name for p in team2])
 
@@ -64,11 +63,11 @@ def run_battle(log=False):
                 battle.possible_choices(Player.P1, result)
 
 
-        p1_choices = battle.possible_choices(Player.P1, result, raw=True)
-        p2_choices = battle.possible_choices(Player.P2, result, raw=True)
+        p1_choices = battle.possible_choices(Player.P1, result)
+        p2_choices = battle.possible_choices(Player.P2, result)
         # if log:
         #     print(f"Player 1: {p1_choice}\nPlayer 2: {p2_choice}")
-        (result, trace) = battle.update_raw(p1_choices.pop(), p2_choices.pop())
+        (result, trace) = battle.update(p1_choices.pop(), p2_choices.pop())
         # print("Bits() battle data:\n" + hexfmt(battle._bits.bytes))
         # print("Real battle data:\n" + hexfmt(battle._pkmn_battle.bytes))
         if log:
@@ -96,4 +95,5 @@ def statcalc_loop(n: int) -> None:
     for _ in range(n):
         statcalc(235)
 cProfile.run("battle_loop(1000)", sort='cumtime')
-# battle_loop(10000)
+battle_loop(10000)
+# run_battle(log=True)
