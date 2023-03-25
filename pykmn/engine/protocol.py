@@ -28,7 +28,7 @@ DAMAGE_ADDPKMN_REASON = DAMAGE_REASONS.index('|[from] recoil|[of] ')
 HEAL_REASONS = ['', '|[silent]', '|[from] drain|[of] ']
 HEAL_ADDPKMN_REASON = HEAL_REASONS.index('|[from] drain|[of] ')
 
-STATUS_REASONS = ['', '|[silent]', '|[from] ']
+STATUS_REASONS = ['', '|[from] ']
 STATUS_ADDMOVE_REASON = STATUS_REASONS.index('|[from] ')
 
 CURESTATUS_REASONS = ['|[msg]', '|[silent]']
@@ -219,14 +219,15 @@ def heal_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str])
     return (msg, i)
 
 def status_parser(name: str):
-    reasons = STATUS_REASONS if name == "Status" else CURESTATUS_REASONS
+    is_status = name == "Status"
+    reasons = STATUS_REASONS if is_status else CURESTATUS_REASONS
     def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
         pokemon = parse_identifier(binary_protocol[i], slots)
         status = parse_status(binary_protocol[i + 1])
         reason = binary_protocol[i + 2]
         i += 3
         msg = f"|-{name.lower()}|{pokemon}|{status}{reasons[reason]}"
-        if name == "Status" and reason == STATUS_ADDMOVE_REASON:
+        if is_status and reason == STATUS_ADDMOVE_REASON:
             msg += parse_move(binary_protocol[i])
             i += 1
 
