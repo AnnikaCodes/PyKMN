@@ -171,9 +171,9 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
 # import cProfile
 # cProfile.run('run(battles, rng_seed)', sort='cumtime')
 libpkmns = [
-    #libpkmn_showdown_no_trace,
+    libpkmn_showdown_no_trace,
     libpkmn_showdown_trace,
-    #libpkmn_trace, libpkmn_no_trace,
+    libpkmn_trace, libpkmn_no_trace,
 ]
 random.shuffle(libpkmns)
 for libpkmn in libpkmns:
