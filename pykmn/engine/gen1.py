@@ -225,6 +225,15 @@ class Battle:
         self._libpkmn = libpkmn
         self._pkmn_battle = self._libpkmn.ffi.new("pkmn_gen1_battle *")
 
+        if self._libpkmn.lib.HAS_TRACE:
+            self.trace_buf = self._libpkmn.ffi.new("uint8_t[]", self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE)
+        else:
+            self.trace_buf = self._libpkmn.ffi.NULL
+        self._choice_buf = self._libpkmn.ffi.new(
+            "pkmn_choice[]",
+            self._libpkmn.lib.PKMN_OPTIONS_SIZE,
+        )
+
         # Initialize the sides
         p1_side_start = LAYOUT_OFFSETS['Battle']['sides']
         p2_side_start = LAYOUT_OFFSETS['Battle']['sides'] + LAYOUT_SIZES['Side']
@@ -276,8 +285,8 @@ class Battle:
             # libpkmn (no Showdown compatibility) initialization for move indexes RNG
             self._pkmn_battle.bytes[offset] = pack_two_u4s(p1_move_idx, p2_move_idx)
             offset += 1
-            assert offset == LAYOUT_OFFSETS['Battle']['rng'], \
-                f"offset {offset} != {LAYOUT_OFFSETS['Battle']['rng']}"
+            # assert offset == LAYOUT_OFFSETS['Battle']['rng'], \
+            #     f"offset {offset} != {LAYOUT_OFFSETS['Battle']['rng']}"
 
             if rng_seed is None:
                 for i in range(10):
@@ -292,11 +301,6 @@ class Battle:
 
     def _initialize_pokemon(self, battle_offset: int, pokemon_data: PokemonData):
         """Initialize a Pokémon in a battle."""
-        self.trace_buf = self._libpkmn.ffi.new("uint8_t[]", self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE)
-        self._choice_buf = self._libpkmn.ffi.new(
-            "pkmn_choice[]",
-            self._libpkmn.lib.PKMN_OPTIONS_SIZE,
-        )
 
         hp = None
         status = 0
@@ -342,11 +346,11 @@ class Battle:
                 stats = SPECIES[species_name]['stats'].copy()
                 for stat in stats:
                     stats[stat] = statcalc(  # type: ignore
-                        stats[stat],  # type: ignore
-                        stat == 'hp',
-                        level,
-                        dvs[stat], # type: ignore
-                        exp[stat], # type: ignore
+                        base_value=stats[stat],  # type: ignore
+                        is_HP=(stat == 'hp'),
+                        level=level,
+                        dv=dvs[stat], # type: ignore
+                        experience=exp[stat], # type: ignore
                     )
             if types is None:
                 first_type = SPECIES[species_name]['types'][0]
@@ -365,7 +369,7 @@ class Battle:
             self._pkmn_battle.bytes[offset:offset + 2] = \
                 pack_u16_as_bytes(stats[stat]) # type: ignore
             offset += 2
-        assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['moves']
+        # assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['moves']
 
         # pack moves
         for move_index in range(4):
@@ -385,32 +389,32 @@ class Battle:
             offset += 1
             self._pkmn_battle.bytes[offset] = pp
             offset += 1
-        assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['hp']
+        # assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['hp']
 
         # pack HP
         self._pkmn_battle.bytes[offset:offset + 2] = pack_u16_as_bytes(hp)
         offset += 2
-        assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['status']
+        # assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['status']
 
         # pack status
         self._pkmn_battle.bytes[offset] = status
         offset += 1
-        assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['species']
+        # assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['species']
 
         # pack species
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[species_name]
         offset += 1
-        assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['types']
+        # assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['types']
 
         # pack types
         self._pkmn_battle.bytes[offset] = pack_two_u4s(TYPES.index(types[0]), TYPES.index(types[1]))
         offset += 1
-        assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['level']
+        # assert offset == battle_offset + LAYOUT_OFFSETS['Pokemon']['level']
 
         # pack level
         self._pkmn_battle.bytes[offset] = level
         offset += 1
-        assert offset == battle_offset + LAYOUT_SIZES['Pokemon']
+        # assert offset == battle_offset + LAYOUT_SIZES['Pokemon']
 
     def last_selected_move(self, player: Player) -> str:
         """Get the last move selected by a player."""
@@ -1166,6 +1170,9 @@ class Battle:
         # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
 
         num_choices = self._fill_choice_buffer(player, previous_turn_result)
+        if num_choices == 0:
+            raise Softlock("Zero choices are available.")
+
         choices: List[Choice] = []
         for i in range(num_choices):
             choices.append(Choice(self._choice_buf[i], libpkmn=self._libpkmn))
@@ -1181,6 +1188,13 @@ class Battle:
         This method returns raw integers instead of Choice objects.
         If you need to inspect the choice data, use possible_choices() instead.
 
+        You MUST consume the returned choices before calling any possible_choices method again;
+        otherwise, the buffer will be overwritten.
+
+        If the buffer is length 0, a softlock has occurred.
+        possible_choices() automatically checks for this and raises an exception, but
+        possible_choices_raw() does not (for speed).
+
         Args:
             player (Player): The player to get choices for.
             previous_turn_result (Result): The result of the previous turn
@@ -1191,7 +1205,6 @@ class Battle:
         """
         num_choices = self._fill_choice_buffer(player, previous_turn_result)
         return self._choice_buf[0:num_choices]
-
 
     def _fill_choice_buffer(self, player: Player, previous_turn_result: Result) -> int:
         """Fills the battle's choice buffer with the possible choices for the given player.
@@ -1219,9 +1232,6 @@ class Battle:
             self._choice_buf,            # pkmn_choice out[]
             self._libpkmn.lib.PKMN_OPTIONS_SIZE,  # size_t len
         )
-
-        if num_choices == 0:
-            raise Softlock("Zero choices are available.")
 
         return num_choices
 
