@@ -69,25 +69,3 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
-
-    - name: Run benchmark
-      if: ${{ matrix.python == 'PyPy' }}
-      run: python3 examples/pkmn_benchmark.py 10000 45643692425 --benchmark | tee benchmark.txt
-
-    - name: Download previous benchmark data
-      if: ${{ matrix.python == 'PyPy' }}
-      uses: actions/cache@v1
-      with:
-        path: ./cache
-        key: ${{ runner.os }}-benchmark
-
-    - name: Store benchmark result
-      if: ${{ matrix.python == 'PyPy' }}
-      uses: benchmark-action/github-action-benchmark@v1
-      with:
-        name: "${{ matrix.python }} battles/second @pkmn benchmark"
-        tool: 'customBiggerIsBetter'
-        output-file-path: benchmark.txt
-        external-data-json-path: ./cache/benchmark-data.json
-        fail-on-alert: false
-        summary-always: true

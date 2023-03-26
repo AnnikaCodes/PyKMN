@@ -1,61 +1,61 @@
-name: Benchmark
+# name: Benchmark
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      debug_enabled:
-        type: boolean
-        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
-        required: false
-        default: false
+# on:
+#   push:
+#     branches: [ main ]
+#   workflow_dispatch:
+#     inputs:
+#       debug_enabled:
+#         type: boolean
+#         description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+#         required: false
+#         default: false
 
-permissions:
-  # deployments permission to deploy GitHub pages website
-  deployments: write
-  # contents permission to update benchmark contents in gh-pages branch
-  contents: write
+# permissions:
+#   # deployments permission to deploy GitHub pages website
+#   deployments: write
+#   # contents permission to update benchmark contents in gh-pages branch
+#   contents: write
 
-jobs:
-  benchmark:
-    runs-on: ubuntu-latest
+# jobs:
+#   benchmark:
+#     runs-on: ubuntu-latest
 
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
+#     steps:
+#     - uses: actions/checkout@v3
+#       with:
+#         submodules: true
 
-    - name: Install PyPy
-      uses: actions/setup-python@v3
-      with:
-        python-version: pypy-3.8
+#     - name: Install PyPy
+#       uses: actions/setup-python@v3
+#       with:
+#         python-version: pypy-3.8
 
-    - name: Install dependencies
-      run: python3 -m pip install ruff mypy build
-        coverage cffi requests
-        types-cffi types-requests types-setuptools
+#     - name: Install dependencies
+#       run: python3 -m pip install ruff mypy build
+#         coverage cffi requests
+#         types-cffi types-requests types-setuptools
 
-    - name: Set up debugging tmate session
-      uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+#     - name: Set up debugging tmate session
+#       uses: mxschmitt/action-tmate@v3
+#       if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
 
-    - name: Build PyKMN
-      run: python3 -m build
+#     - name: Build PyKMN
+#       run: python3 -m build
 
-    - name: Install PyKMN
-      run: python3 -m pip install --find-links=dist pykmn
+#     - name: Install PyKMN
+#       run: python3 -m pip install --find-links=dist pykmn
 
-    - name: Run benchmark
-      run: python3 examples/pkmn_benchmark.py 10000 45643692425 --benchmark | tee benchmark.txt
+#     - name: Run benchmark
+#       run: python3 examples/pkmn_benchmark.py 10000 45643692425 --benchmark | tee benchmark.txt
 
-    - name: Store benchmark result
-      uses: benchmark-action/github-action-benchmark@v1
-      with:
-        name: "${{ matrix.python }} battles/second @pkmn benchmark"
-        tool: 'customBiggerIsBetter'
-        output-file-path: benchmark.txt
-        fail-on-alert: false
-        summary-always: true
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        auto-push: true
+#     - name: Store benchmark result
+#       uses: benchmark-action/github-action-benchmark@v1
+#       with:
+#         name: "${{ matrix.python }} battles/second @pkmn benchmark"
+#         tool: 'customBiggerIsBetter'
+#         output-file-path: benchmark.txt
+#         fail-on-alert: false
+#         summary-always: true
+#         github-token: ${{ secrets.GITHUB_TOKEN }}
+#         auto-push: true
