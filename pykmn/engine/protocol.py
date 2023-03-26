@@ -28,7 +28,7 @@ DAMAGE_ADDPKMN_REASON = DAMAGE_REASONS.index('|[from] recoil|[of] ')
 HEAL_REASONS = ['', '|[silent]', '|[from] drain|[of] ']
 HEAL_ADDPKMN_REASON = HEAL_REASONS.index('|[from] drain|[of] ')
 
-STATUS_REASONS = ['', '|[from] ']
+STATUS_REASONS = ['', '|[silent]', '|[from] ']
 STATUS_ADDMOVE_REASON = STATUS_REASONS.index('|[from] ')
 
 CURESTATUS_REASONS = ['|[msg]', '|[silent]']

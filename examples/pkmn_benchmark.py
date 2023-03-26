@@ -9,7 +9,6 @@ import time
 import random
 from typing import List, Set, cast
 from pykmn.engine.rng import ShowdownRNG
-from pykmn.engine.protocol import parse_protocol
 from pykmn.engine.common import ResultType, Choice, Player
 from pykmn.engine.gen1 import Battle, PokemonData, Moveset
 from pykmn.data.gen1 import SPECIES_IDS, Gen1StatData, MOVES
@@ -117,7 +116,7 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
     duration = 0
     turns = 0
     prng = ShowdownRNG.from_seed(rng_seed)
-    print(f"RNG seed: {rng_seed}")
+    # print(f"RNG seed: {rng_seed}")
 
     for i in range(battles):
         battle_seed = new_seed(prng)
@@ -133,28 +132,28 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
         # print(f"TEAM1: {p1_team}")
         # print(f"TEAM2: {p2_team}")
 
-        slots = (
-            [x[0] for x in p1_team],
-            [x[0] for x in p2_team],
-        )
+        # slots = (
+        #     [x[0] for x in p1_team],
+        #     [x[0] for x in p2_team],
+        # )
         c1 = Choice.PASS()
         c2 = Choice.PASS()
 
         p1seed = new_seed(prng)
-        print(f"p1seed: {u64_to_4_u16s(p1seed)}")
+        # print(f"p1seed: {u64_to_4_u16s(p1seed)}")
         p1_prng = ShowdownRNG.from_seed(p1seed)
         p2_prng = ShowdownRNG.from_seed(new_seed(prng))
 
-        print(f"----- BEGINNING BATTLE {i}-----")
+        # print(f"----- BEGINNING BATTLE {i}-----")
         begin = time.process_time_ns()
         (result, trace) = battle.update(c1, c2)
-        print("\n".join(parse_protocol(trace, slots)))
+        # print("\n".join(parse_protocol(trace, slots)))
         while result.type() == ResultType.NONE:
             p1_choice = random_pick(p1_prng, battle.possible_choices_raw(Player.P1, result))
             p2_choice = random_pick(p2_prng, battle.possible_choices_raw(Player.P2, result))
             (result, trace) = battle.update_raw(p1_choice, p2_choice)
-            print("\n".join(parse_protocol(trace, slots)))
-            print(f"original PRNG seed: {prng.seed()}")
+            # print("\n".join(parse_protocol(trace, slots)))
+            # print(f"original PRNG seed: {prng.seed()}")
         turns += battle.turn()
         duration += time.process_time_ns() - begin
         # TODO: do we need to fix the PRNG seed since it's a passed-by-value Python int?

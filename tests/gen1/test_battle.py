@@ -260,27 +260,27 @@ class TestBattle(unittest.TestCase):
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
-            self.assertEqual(battle.status(Player.P1, 1), Status.HEALTHY)
-            self.assertEqual(battle.status(Player.P2, 1), Status.HEALTHY)
+            self.assertTrue(battle.status(Player.P1, 1).healthy())
+            self.assertTrue(battle.status(Player.P2, 1).healthy())
 
             result = run_first_choice(battle, result)
             # P2 is badly poisoned
-            self.assertEqual(battle.status(Player.P2, 1), Status.POISON) # Toxic
+            self.assertTrue(battle.status(Player.P2, 1).poisoned()) # Toxic
             self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Toxic))
             self.assertEqual(battle.toxic_severity(Player.P2), 0)
 
             result = run_first_choice(battle, result)
-            self.assertEqual(battle.status(Player.P1, 1), 0) # No status
+            self.assertTrue(battle.status(Player.P1, 1).healthy()) # No status
             self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Toxic))
             self.assertEqual(battle.toxic_severity(Player.P2), 1)
 
             result = run_first_choice(battle, result)
             self.assertEqual(battle.toxic_severity(Player.P2), 2)
-            self.assertEqual(battle.status(Player.P2, 1), Status.POISON)
+            self.assertTrue(battle.status(Player.P2, 1).poisoned())
 
-            battle.set_status(Player.P1, 1, Status.FREEZE)
-            self.assertEqual(battle.status(Player.P1, 1), Status.FREEZE)
-            self.assertEqual(battle.status(Player.P2, 1), Status.POISON)
+            battle.set_status(Player.P1, 1, Status.FROZEN())
+            self.assertTrue(battle.status(Player.P1, 1).frozen())
+            self.assertTrue(battle.status(Player.P2, 1).poisoned())
 
             battle.set_toxic_severity(Player.P2, 5)
             self.assertEqual(battle.toxic_severity(Player.P2), 5)

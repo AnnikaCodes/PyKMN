@@ -15,17 +15,17 @@ import math
 import random
 
 """Pythonic API to get info about a Pokémon status."""
-class Status(IntEnum):
-    HEALTHY = 0
-    POISON = 1 << 3
-    BURN = 1 << 4
-    FREEZE = 1 << 5
-    PARALYSIS = 1 << 6
+class Status:
+    _SLP = 2
+    _PSN = 3
+    _BRN = 4
+    _FRZ = 5
+    _PAR = 6
 
     def __init__(self, raw_status: int):
         self._value = raw_status
 
-    def is_asleep(self) -> bool:
+    def asleep(self) -> bool:
         """Returns whether the Pokémon is asleep.
 
         Returns:
@@ -43,13 +43,45 @@ class Status(IntEnum):
         """
         return self._value & 0b111
 
-    def is_healthy(self) -> bool:
+    def healthy(self) -> bool:
         """Returns whether the Pokémon is healthy.
 
         Returns:
             bool: _description_
         """
-        return self._value == Status.HEALTHY
+        return self._value == 0
+
+    def burned(self) -> bool:
+        """Returns whether the Pokémon is burned.
+
+        Returns:
+            bool: _description_
+        """
+        return ((self._value >> Status._BRN) & 1) != 0
+
+    def frozen(self) -> bool:
+        """Returns whether the Pokémon is frozen.
+
+        Returns:
+            bool: _description_
+        """
+        return ((self._value >> Status._FRZ) & 1) != 0
+
+    def paralyzed(self) -> bool:
+        """Returns whether the Pokémon is paralyzed.
+
+        Returns:
+            bool: _description_
+        """
+        return ((self._value >> Status._PAR) & 1) != 0
+
+    def poisoned(self) -> bool:
+        """Returns whether the Pokémon is poisoned.
+
+        Returns:
+            bool: _description_
+        """
+        return ((self._value >> Status._PSN) & 1) != 0
 
     @staticmethod
     def SLEEP(duration: int) -> int:
@@ -64,27 +96,72 @@ class Status(IntEnum):
         return duration
 
     @staticmethod
-    def SELF_INFLICTED_SLEEP(duration: int) -> int:
+    def HEALTHY():
+        """Returns the raw status value for a healthy Pokémon.
+
+        Returns:
+            Status: _description_
+        """
+        return Status(0)
+
+    @staticmethod
+    def POISONED():
+        """Returns the raw status value for a poisoned Pokémon.
+
+        Returns:
+            Status: _description_
+        """
+        return Status(1 << Status._PSN)
+
+    @staticmethod
+    def BURNED():
+        """Returns the raw status value for a burned Pokémon.
+
+        Returns:
+            Status: _description_
+        """
+        return Status(1 << Status._BRN)
+
+    @staticmethod
+    def FROZEN():
+        """Returns the raw status value for a frozen Pokémon.
+
+        Returns:
+            Status: _description_
+        """
+        return Status(1 << Status._FRZ)
+
+    @staticmethod
+    def PARALYZED():
+        """Returns the raw status value for a paralyzed Pokémon.
+
+        Returns:
+            Status: _description_
+        """
+        return Status(1 << Status._PAR)
+
+    @staticmethod
+    def SELF_INFLICTED_SLEEP(duration: int):
         """Returns the raw status value for a self-inflicted sleep.
 
         Args:
             duration (int): The duration of the sleep.
 
         Returns:
-            int: _description_
+            Status: _description_
         """
-        return 0x80 | duration
+        return Status(0x80 | duration)
 
     def __repr__(self) -> str:
-        if self._value == Status.BURN:
+        if self.burned():
             return "Status(burned)"
-        elif self._value == Status.FREEZE:
+        elif self.frozen():
             return "Status(frozen)"
-        elif self._value == Status.PARALYSIS:
+        elif self.paralyzed():
             return "Status(paralyzed)"
-        elif self._value == Status.POISON:
+        elif self.poisoned():
             return "Status(poisoned)"
-        elif self.is_healthy():
+        elif self.healthy():
             return "Status(healthy)"
         else:
             sleep_duration = self.sleep_duration()
@@ -157,7 +234,7 @@ def statcalc(
         base_value (int): The base value of the stat for this species.
         dv (int): The Pokémon's DV for this stat.
         level (int): The level of the Pokémon.
-        is_HP (bool, optional): Whether the stat is HP or not. Defaults to False.
+        HP (bool, optional): Whether the stat is HP or not. Defaults to False.
 
     Returns:
         int: The value of the stat
@@ -226,7 +303,10 @@ class Battle:
         self._pkmn_battle = self._libpkmn.ffi.new("pkmn_gen1_battle *")
 
         if self._libpkmn.lib.HAS_TRACE:
-            self.trace_buf = self._libpkmn.ffi.new("uint8_t[]", self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE)
+            self.trace_buf = self._libpkmn.ffi.new(
+                "uint8_t[]",
+                self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE,
+            )
         else:
             self.trace_buf = self._libpkmn.ffi.NULL
         self._choice_buf = self._libpkmn.ffi.new(
@@ -1042,7 +1122,7 @@ class Battle:
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['status']
-        self._pkmn_battle.bytes[offset] = new_status
+        self._pkmn_battle.bytes[offset] = new_status._value
     # optimization: make Species an enum to avoid lookups
     def species(self, player: Player, pokemon: PokemonSlot) -> str:
         """Get the species of a Pokémon."""
