@@ -241,7 +241,7 @@ def statcalc(
     """
     core = (2 * (base_value + dv)) + (math.sqrt(experience) // 4)
     factor = (level + 10) if is_HP else 5
-    return int((core * (level // 100) + factor) % 2**16)
+    return int(((core * level) // 100) + factor) % 2**16
 
 
 # MAJOR TODO!
