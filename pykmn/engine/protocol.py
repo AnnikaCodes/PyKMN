@@ -1,4 +1,9 @@
-"""Code to handle libpkmn binary protocol."""
+"""
+Code to handle libpkmn binary protocol.
+
+This is not necessarily 100% identical to what Pokémon Showdown would produce,
+but it's reasonably similar.
+"""
 from typing import List, Dict, Tuple
 from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS, TYPES
 from pykmn.engine.common import unpack_u16_from_bytes
@@ -21,7 +26,7 @@ CANT_REASONS = [
 CANT_ADDMOVE_REASON = CANT_REASONS.index('|Disable|')
 
 DAMAGE_REASONS = [
-    '', '|[from] psn', '|[from] brn', '|[from] confusion', '|[from] leechseed',
+    '', '|[from] psn', '|[from] brn', '|[from] confusion', '|[from] Leech Seed',
     '|[from] Recoil|[of] ',
 ]
 DAMAGE_ADDPKMN_REASON = DAMAGE_REASONS.index('|[from] Recoil|[of] ')
@@ -41,8 +46,10 @@ FAIL_REASONS = [
 
 ACTIVATE_REASONS = [
     '|Bide', '|confusion', '|move: Haze', '|move: Mist',
-    '|move: Struggle', '|Substitute|[damage]', '||move: Splash',
+    '|move: Struggle', '|Substitute|[damage]', '|move: Splash',
 ]
+ACTIVATE_NO_POKEMON_REASON = ACTIVATE_REASONS.index('|move: Splash')
+ACTIVATE_BLOCK_REASON = ACTIVATE_REASONS.index('|move: Mist')
 
 BOOST_REASONS = [
     '|atk|[from] Rage', '|atk', '|def', '|spe', '|spa', '|spd', '|accuracy', '|evasion',
@@ -58,8 +65,9 @@ START_ADDMOVE_MIN_REASON = START_REASONS.index('|Disable|')
 
 END_REASONS = [
     '|Disable', '|confusion', '|move: Bide', '|Substitute', '|Disable|[silent]',
-    '|confusion|[silent]', '|mist|[silent]', '|focusenergy|[silent]', '|leechseed|[silent]',
-    '|Toxic counter|[silent]', '|lightscreen|[silent]', '|reflect|[silent]',
+    '|confusion|[silent]', '|Mist|[silent]', '|move: Focus Energy|[silent]',
+    '|move: Leech Seed|[silent]', '|Toxic counter|[silent]', '|Light Screen|[silent]',
+    '|Reflect|[silent]',
 ]
 IMMUNE_REASONS = ['', '|[ohko]']
 
@@ -278,8 +286,12 @@ def prepare_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[st
     return (f"|-prepare|{pokemon}|{move}", i)
 
 def activate_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
-    pokemon = parse_identifier(binary_protocol[i], slots)
-    return (f"|-activate|{pokemon}{ACTIVATE_REASONS[binary_protocol[i + 1]]}", i + 2)
+    pokemon = '' \
+        if binary_protocol[i + 1] == ACTIVATE_NO_POKEMON_REASON \
+        else parse_identifier(binary_protocol[i], slots)
+    protocol = 'block' if binary_protocol[i + 1] == ACTIVATE_BLOCK_REASON else \
+        'activate'
+    return (f"|-{protocol}|{pokemon}{ACTIVATE_REASONS[binary_protocol[i + 1]]}", i + 2)
 
 def start_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
     pokemon = parse_identifier(binary_protocol[i], slots)
@@ -292,11 +304,12 @@ def start_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]
     if reason == START_TYPECHANGE_REASON:
         # types_byte has two types in each of its 4-bit halves
         types_byte = binary_protocol[i]
-        type1 = TYPES[types_byte >> 4]
-        type2 = TYPES[types_byte & 0xF]
+        type1 = TYPES[types_byte & 0xF]
+        type2 = TYPES[types_byte >> 4]
         target = parse_identifier(binary_protocol[i + 1], slots)
         i += 2
-        msg += f"|typechange|{type1}/{type2}|[from] move: Conversion|[of] {target}"
+        msg += f"|typechange|{type1}{f'/{type2}' if type1 != type2 else ''}"
+        msg += f"|[from] move: Conversion|[of] {target}"
     elif reason >= START_ADDMOVE_MIN_REASON:
         msg += parse_move(binary_protocol[i])
         i += 1
@@ -347,7 +360,7 @@ HANDLERS = [
     prepare_handler,
     generic_message_parser('-mustrecharge'),
     activate_handler,
-    returner('|-fieldactivate|'),
+    returner('|-fieldactivate|move: Pay Day'), # will need to be changed for future generations
     start_handler,
     end_handler,
     returner('|-ohko'),

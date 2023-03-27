@@ -328,7 +328,7 @@ class TestProtocolParsing(unittest.TestCase):
         )
         self.case(
             [MESSAGES.index('Activate'), 10, REASONS['Activate'].index('Mist')],
-            ["|-activate|p2a: Pokémon #2|move: Mist"],
+            ["|-block|p2a: Pokémon #2|move: Mist"],
         )
         self.case(
             [MESSAGES.index('Activate'), 10, REASONS['Activate'].index('Struggle')],
@@ -340,12 +340,12 @@ class TestProtocolParsing(unittest.TestCase):
         )
         self.case(
             [MESSAGES.index('Activate'), 10, REASONS['Activate'].index('Splash')],
-            ["|-activate|p2a: Pokémon #2||move: Splash"],
+            ["|-activate||move: Splash"],
         )
 
     def test_fieldactivate(self):
         """Should parse a |-fieldactivate| message."""
-        self.case([MESSAGES.index('FieldActivate')], ["|-fieldactivate|"])
+        self.case([MESSAGES.index('FieldActivate')], ["|-fieldactivate|move: Pay Day"])
 
     def test_start(self):
         """Should parse a |-start| message."""
@@ -387,9 +387,9 @@ class TestProtocolParsing(unittest.TestCase):
         )
         self.case([
             MESSAGES.index('Start'), 4, REASONS['Start'].index('TypeChange'),
-            (TYPES.index('Fire') << 4) + TYPES.index('Electric'), 9
+            TYPES.index('Electric') + (TYPES.index('Fire') << 4), 9
         ], [
-            "|-start|p1a: Pokémon #4|typechange|Fire/Electric|" +
+            "|-start|p1a: Pokémon #4|typechange|Electric/Fire|" +
             "[from] move: Conversion|[of] p2a: Pokémon #1"
         ])
         self.case(
@@ -432,15 +432,15 @@ class TestProtocolParsing(unittest.TestCase):
         )
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('Mist')],
-            ["|-end|p1a: Pokémon #5|mist|[silent]"],
+            ["|-end|p1a: Pokémon #5|Mist|[silent]"],
         )
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('FocusEnergy')],
-            ["|-end|p1a: Pokémon #5|focusenergy|[silent]"],
+            ["|-end|p1a: Pokémon #5|move: Focus Energy|[silent]"],
         )
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('LeechSeed')],
-            ["|-end|p1a: Pokémon #5|leechseed|[silent]"],
+            ["|-end|p1a: Pokémon #5|move: Leech Seed|[silent]"],
         )
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('Toxic')],
@@ -448,11 +448,11 @@ class TestProtocolParsing(unittest.TestCase):
         )
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('LightScreen')],
-            ["|-end|p1a: Pokémon #5|lightscreen|[silent]"],
+            ["|-end|p1a: Pokémon #5|Light Screen|[silent]"],
         )
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('Reflect')],
-            ["|-end|p1a: Pokémon #5|reflect|[silent]"],
+            ["|-end|p1a: Pokémon #5|Reflect|[silent]"],
         )
 
     def test_ohko(self):

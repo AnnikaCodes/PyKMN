@@ -11,10 +11,9 @@ from typing import List, cast
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.common import ResultType, Player
 from pykmn.engine.gen1 import Battle, PokemonData, Moveset
-from pykmn.engine.protocol import parse_protocol
 from pykmn.data.gen1 import SPECIES_IDS, Gen1StatData, MOVES
 from pykmn.engine.libpkmn import libpkmn_no_trace, libpkmn_trace, libpkmn_showdown_trace, \
-    libpkmn_showdown_no_trace, LibpkmnBinding  # noqa:F401
+    libpkmn_showdown_no_trace, LibpkmnBinding
 
 # https://github.com/pkmn/engine/blob/main/src/test/blocklist.json
 MOVES_BANISHED_TO_THE_SHADOW_REALM: List[str] = [
@@ -117,16 +116,11 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
     duration = 0
     turns = 0
     prng = ShowdownRNG.from_seed(rng_seed)
-    print(f"RNG seed: {rng_seed}")
 
     for i in range(battles):
-        print(f"seed before team 1 gen: {prng.seed()}")
         p1_team = generate_team(prng)
-        print(f"seed after team 1 gen: {prng.seed()}")
         p2_team = generate_team(prng)
-        print(f"seed after team 2 gen: {prng.seed()}")
         battle_seed = new_seed(prng)
-        print(f"battle seed: {battle_seed}")
 
         battle = Battle(
             p1_team=p1_team,
@@ -135,42 +129,22 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
                 [prng.in_range(0, 256) for _ in range(10)],
             libpkmn=libpkmn,
         )
-        # print("TEAM1: " + '\n'.join(
-        #     [f'{x[0]} ({x[1]}) ({x[2] if len(x) > 1 else ""})' for x in p1_team]
-        # ))
-        # print("TEAM2: " + '\n'.join(
-        #     [f'{x[0]} ({x[1]}) ({x[2] if len(x) > 1 else ""})' for x in p2_team]
-        # ))
 
-        slots = (
-            [x[0] for x in p1_team],
-            [x[0] for x in p2_team],
-        )
         c1 = 0
         c2 = 0
 
         p1seed = new_seed(prng)
-        print(f"p1seed: {p1seed}")
         p1_prng = ShowdownRNG.from_seed(p1seed)
         p2_prng = ShowdownRNG.from_seed(new_seed(prng))
 
-        print(f"----- BEGINNING BATTLE {i} -----")
         begin = time.process_time_ns()
-        print(f"choice PRNG seed: p1={p1_prng.seed()}, p2={p2_prng.seed()}")
-        # print(f"battle PRNG seed: {battle._rng().seed()}")
-        (result, trace) = battle.update_raw(c1, c2)
-        print("\n".join(parse_protocol(trace, slots)))
+        (result, _) = battle.update_raw(c1, c2)
         while result.type() == ResultType.NONE:
             c1 = random_pick(p1_prng, battle.possible_choices_raw(Player.P1, result))
             c2 = random_pick(p2_prng, battle.possible_choices_raw(Player.P2, result))
-            (result, trace) = battle.update_raw(c1, c2)
-            if result.type() == ResultType.NONE:
-                print(f"choice PRNG seed: p1={p1_prng.seed()}, p2={p2_prng.seed()}")
-                # print(f"battle PRNG seed: {battle._rng().seed()}")
-            print("\n".join(parse_protocol(trace, slots)))
+            (result, _) = battle.update_raw(c1, c2)
         turns += battle.turn()
         duration += time.process_time_ns() - begin
-        # TODO: do we need to fix the PRNG seed since it's a passed-by-value Python int?
 
     bps = int((battles / duration) * 10**9)
     if len(sys.argv) > 3 and sys.argv[3] == '--benchmark':
@@ -181,12 +155,10 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
             f"There were a total of {turns} turns, and the final PRNG seed was {prng.seed()}."
         )
 
-# import cProfile
-# cProfile.run('run(battles, rng_seed)', sort='cumtime')
 libpkmns = [
-    # libpkmn_showdown_no_trace,
+    libpkmn_showdown_no_trace,
     libpkmn_showdown_trace,
-    # libpkmn_trace, # libpkmn_no_trace,
+    libpkmn_trace, libpkmn_no_trace,
 ]
 random.shuffle(libpkmns)
 for libpkmn in libpkmns:
