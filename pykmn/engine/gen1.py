@@ -239,7 +239,8 @@ def statcalc(
     Returns:
         int: The value of the stat
     """
-    core = (2 * (base_value + dv)) + (math.sqrt(experience) // 4)
+    evs = min(255, math.ceil(math.sqrt(experience)))
+    core = (2 * (base_value + dv)) + (evs // 4)
     factor = (level + 10) if is_HP else 5
     return int(((core * level) // 100) + factor) % 2**16
 

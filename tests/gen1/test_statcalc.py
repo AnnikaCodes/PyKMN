@@ -29,7 +29,6 @@ class TestGen1StatCalculation(unittest.TestCase):
             251,
         )
 
-    @unittest.skip("outstanding bug that needs investigation")
     def test_porygon_hp(self):
         """Porygon's HP stat is calculated = to JS."""
         porygon_stats = SPECIES['Porygon']['stats']
@@ -46,7 +45,6 @@ class TestGen1StatCalculation(unittest.TestCase):
             39,
         )
 
-    @unittest.skip("outstanding bug that needs investigation")
     def test_from_pkmn(self):
         """Stat calculation tests from the pkmn project."""
         gyarados_stats = SPECIES['Gyarados']['stats']
