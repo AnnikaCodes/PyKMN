@@ -2,6 +2,7 @@
 from typing import List, Dict, Tuple
 from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS, TYPES
 from pykmn.engine.common import unpack_u16_from_bytes
+import re
 
 Slots = Tuple[List[str], List[str]]
 
@@ -21,9 +22,9 @@ CANT_ADDMOVE_REASON = CANT_REASONS.index('|Disable|')
 
 DAMAGE_REASONS = [
     '', '|[from] psn', '|[from] brn', '|[from] confusion', '|[from] leechseed',
-    '|[from] recoil|[of] ',
+    '|[from] Recoil|[of] ',
 ]
-DAMAGE_ADDPKMN_REASON = DAMAGE_REASONS.index('|[from] recoil|[of] ')
+DAMAGE_ADDPKMN_REASON = DAMAGE_REASONS.index('|[from] Recoil|[of] ')
 
 HEAL_REASONS = ['', '|[silent]', '|[from] drain|[of] ']
 HEAL_ADDPKMN_REASON = HEAL_REASONS.index('|[from] drain|[of] ')
@@ -50,10 +51,10 @@ BOOST_REASONS = [
 START_REASONS = [
     '|Bide', '|confusion', '|confusion|[silent]', '|move: Focus Energy', '|move: Leech Seed',
     '|Light Screen', '|Mist', '|Reflect', '|Substitute', '', # Typechange handled elsewhere
-    '|Disable|move: ', '|Mimic|move: ',
+    '|Disable|', '|Mimic|move: ',
 ]
 START_TYPECHANGE_REASON = START_REASONS.index('')
-START_ADDMOVE_MIN_REASON = START_REASONS.index('|Disable|move: ')
+START_ADDMOVE_MIN_REASON = START_REASONS.index('|Disable|')
 
 END_REASONS = [
     '|Disable', '|confusion', '|move: Bide', '|Substitute', '|Disable|[silent]',
@@ -102,19 +103,19 @@ def parse_status(status: int) -> str:
         str: the identifier
     """
     # code is from @pkmn/engine
-    # https://github.com/pkmn/engine/blob/main/src/pkg/protocol.ts#L436-L446
+    # https://github.com/pkmn/engine/blob/main/src/pkg/protocol.ts#L463-L471
     if status & 0b111:
         return 'slp'
-    if (status >> 3) & 1:
-        return 'psn'
-    if (status >> 4) & 1:
-        return 'brn'
-    if (status >> 5) & 1:
-        return 'frz'
-    if (status >> 6) & 1:
-        return 'par'
     if (status >> 7) & 1:
         return 'tox'
+    if (status >> 6) & 1:
+        return 'par'
+    if (status >> 5) & 1:
+        return 'frz'
+    if (status >> 4) & 1:
+        return 'brn'
+    if (status >> 3) & 1:
+        return 'psn'
     return ''
 
 def lastx_parser(kind: str):
@@ -123,7 +124,10 @@ def lastx_parser(kind: str):
         idx = len(messages) - 1
         while idx >= 0:
             if messages[idx].startswith("|move|"):
-                messages[idx] += to_append
+                if kind == "Still":
+                    messages[idx] = re.sub(r"\|p\d[ab]: [^|]*$", to_append, messages[idx])
+                else:
+                    messages[idx] += to_append
                 break
             idx -= 1
         if idx == -1:
@@ -152,8 +156,8 @@ def switch_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str
     status = parse_status(binary_protocol[i + 7])
     i += 8
     return ((
-        f"|switch|{pokemon}|{species}, L{level}|" +
-        f"{current_hp}/{max_hp}{' ' + status if status else ''}"
+        f"|switch|{pokemon}|{species}{f', L{level}' if level != 100 else ''}|" +
+        (f"{current_hp}/{max_hp}{' ' + status if status else ''}" if current_hp != 0 else "0 fnt")
     ), i)
 
 def cant_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]):
@@ -188,8 +192,8 @@ def damage_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str
     max_hp = binary_protocol[i + 3] + (binary_protocol[i + 4] << 8)
     status = parse_status(binary_protocol[i + 5])
     msg = (
-        f"|-damage|{target}|{current_hp}/{max_hp}" +
-        f"{' ' + status if status else ''}"
+        f"|-damage|{target}|" +
+        (f"{current_hp}/{max_hp}{' ' + status if status else ''}" if current_hp != 0 else "0 fnt")
     )
     reason = binary_protocol[i + 6]
     i += 7
@@ -207,8 +211,8 @@ def heal_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str])
     max_hp = binary_protocol[i + 3] + (binary_protocol[i + 4] << 8)
     status = parse_status(binary_protocol[i + 5])
     msg = (
-        f"|-heal|{target}|{current_hp}/{max_hp}" +
-        f"{' ' + status if status else ''}"
+        f"|-heal|{target}|" +
+        (f"{current_hp}/{max_hp}{' ' + status if status else ''}" if current_hp != 0 else "0 fnt")
     )
     reason = binary_protocol[i + 6]
     i += 7
@@ -228,7 +232,7 @@ def status_parser(name: str):
         i += 3
         msg = f"|-{name.lower()}|{pokemon}|{status}{reasons[reason]}"
         if is_status and reason == STATUS_ADDMOVE_REASON:
-            msg += parse_move(binary_protocol[i])
+            msg += f"move: {parse_move(binary_protocol[i])}"
             i += 1
 
         return (msg, i)
@@ -346,7 +350,7 @@ HANDLERS = [
     returner('|-fieldactivate|'),
     start_handler,
     end_handler,
-    returner('|-ohko|'),
+    returner('|-ohko'),
     generic_message_parser('-crit'),
     generic_message_parser('-supereffective'),
     generic_message_parser('-resisted'),

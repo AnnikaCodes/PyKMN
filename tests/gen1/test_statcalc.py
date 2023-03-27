@@ -45,3 +45,18 @@ class TestGen1StatCalculation(unittest.TestCase):
             statcalc(psyduck_stats['hp'], level=10, is_HP=True),
             39,
         )
+
+    @unittest.skip("outstanding bug that needs investigation")
+    def test_from_pkmn(self):
+        """Stat calculation tests from the pkmn project."""
+        gyarados_stats = SPECIES['Gyarados']['stats']
+        self.assertEqual(
+            127,
+            statcalc(gyarados_stats['hp'], dv=0, level=38, experience=5120, is_HP=True),
+        )
+
+        pidgeot_stats = SPECIES['Pidgeot']['stats']
+        self.assertEqual(
+            279,
+            statcalc(pidgeot_stats['spe'], dv=15, level=100, experience=63001, is_HP=False),
+        )

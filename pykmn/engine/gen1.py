@@ -560,6 +560,15 @@ class Battle:
             LAYOUT_OFFSETS['ActivePokemon']['species']
         return SPECIES_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
+    def _rng(self) -> ShowdownRNG:
+        """i am for debugging. if you call me i will be weird."""
+        if self._libpkmn.lib.IS_SHOWDOWN_COMPATIBLE != 1:
+            raise Exception("no")
+        offset = LAYOUT_OFFSETS['Battle']['rng']
+        # get the seed as a u64 with bit math
+        rng = ShowdownRNG.from_seed(0, self._libpkmn)
+        rng._psrng = self._pkmn_battle.bytes[offset:(offset + self._libpkmn.lib.PKMN_PSRNG_SIZE)]
+        return rng
     def set_active_pokemon_species(self, player: Player, new_species: str) -> None:
         """Set the species of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
