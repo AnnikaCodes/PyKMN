@@ -1,4 +1,9 @@
-"""This file includes common functionality like bindings for pkmn_result."""
+"""`pykmn.engine.common` contains common types and functions used by the PyKMN engine.
+
+Most of the contents of this submodule aren't things you'll need to construct/call yourself,
+but `Result` and `Choice` both include important methods
+for when you get them from a `pykmn.engine.gen1.Battle` object.
+"""
 from enum import Enum, IntEnum
 from typing import Union, Tuple, NewType, List
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
@@ -8,22 +13,51 @@ from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 
 
 Slots = NewType('Slots', Tuple[List[str], List[str]])
+r"""
+The Slots type is used to store Pokémon names.
+You can pass it into `pykmn.engine.protocol.parse_protocol` to make protocol messages include
+Pokémon names instead of just "Pokémon #n".
+
+Here's an example:
+```python
+from pykmn.engine.protocol import parse_protocol
+from pykmn.engine.common import Slots
+
+slots = Slots((
+    # Player 1's Pokémon
+    ["Charmander", "Pikachu", "Bulbasaur", "Squirtle", "Caterpie", "Weedle"],
+    # Player 2's Pokémon
+    ["Mewtwo", "Charizard", "Articuno", "Dragonite", "Mew", "Starmie"],
+))
+
+# assuming `trace` has already been populated by a call to Battle.update()
+protocol = parse_protocol(trace, slots)
+print("\n".join(protocol))
+```
+
+Check out the
+[`sample_teams` code](https://github.com/AnnikaCodes/PyKMN/blob/main/examples/sample_teams.py)
+for another example of how to use `Slots`.
+"""
 
 class ChoiceType(Enum):
     """An enum representing the types of choice players can make in a Pokémon battle.
 
-    Python version of pkmn_choice_kind.
+    `ChoiceType` is a Python version of libpkmn's `pkmn_choice_kind`.
+    It's returned from `Result.p1_choice_type` and `Result.p2_choice_type`, as well as
+    `Choice.type`.
     """
 
     PASS = 0
     MOVE = 1
     SWITCH = 2
 
-
 class ResultType(IntEnum):
     """An enum representing the result of a move in a Pokémon battle.
 
-    Python version of pkmn_result_kind.
+    This is returned by `Result.type`, and can be used to check if a battle has ended
+    (at which point you need to stop calling `pykmn.engine.gen1.Battle.update`!)
+    and who, if any, has won.
     """
 
     NONE = 0
@@ -32,63 +66,78 @@ class ResultType(IntEnum):
     TIE = 3
     ERROR = 4
 
-
 class Player(IntEnum):
     """An enum representing the players in a Pokémon battle.
 
-    Python version of pkmn_player.
+    This is the Python version of libpkmn's `pkmn_player`.
     """
 
     P1 = 0
+    """Player 1."""
     P2 = 1
+    """Player 2."""
+
 
 
 class Result:
     """Represents the result of updating a Pokémon battle.
 
-    Python version of pkmn_result.
-
-    Consumers of the PyKMN library shouldn't need to construct this class themselves.
+    `Result` is the Python version of pkmn_result.
+    Consumers of the PyKMN library should never need to construct this class themselves;
+    you can get `Result`s from `pykmn.engine.gen1.Battle.update`.
     """
+
 
     def __init__(
         self,
         _pkmn_result: int,
         _libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
     ) -> None:
-        """Create a new Result object. You shouldn't need to do this.
-
-        Args:
-            _pkmn_result (`int`): The value of the C pkmn_result type.
-        """
+        """You don't need to use this!"""
         self._pkmn_result = _pkmn_result
         self._libpkmn = _libpkmn
 
     def type(self) -> ResultType:
-        """Get the type of result.
+        """Get the type of result this is.
 
-        Python version of pkmn_result_type.
+        If it's `ResultType.NONE`,
+        the battle is still going on and you can keep calling `pykmn.engine.gen1.Battle.update`.
+        Otherwise, the `ResultType` value tells how the battle ended.
+
+        Returns:
+            **`ResultType`**: The type of result this is.
         """
         return self._libpkmn.lib.pkmn_result_type(self._pkmn_result)
 
     def p1_choice_type(self) -> ChoiceType:
-        """Get the type of choice the first player made.
+        """Get the type of choice Player 1 made.
 
-        Python version of pkmn_result_p1.
+        This is a Python version of libpkmn's `pkmn_result_p1`.
+
+        Returns:
+            **`ChoiceType`**: The type of choice Player 1 made.
         """
         return ChoiceType(self._libpkmn.lib.pkmn_result_p1(self._pkmn_result))
 
     def p2_choice_type(self) -> ChoiceType:
-        """Get the type of choice the second player made.
+        """Get the type of choice the Player 2 made.
 
-        Python version of pkmn_result_p2.
+        This is a Python version of libpkmn's `pkmn_result_p2`.
+
+        Returns:
+            **`ChoiceType`**: The type of choice Player 2 made.
         """
         return ChoiceType(self._libpkmn.lib.pkmn_result_p2(self._pkmn_result))
 
     def is_error(self) -> bool:
-        """Check if the result is an error.
+        """Check if this result represents an error.
 
-        Python version of pkmn_error.
+        Errors are already checked for in `pykmn.engine.gen1.Battle.update`
+        (which throws an error if one is encountered), so you shouldn't need to use this.
+        This is a Python version of libpkmn's `pkmn_error`.
+
+        Returns:
+            **`bool`**: `True` if this `Result` represents an error, and `False` otherwise.
         """
         return self._libpkmn.lib.pkmn_error(self._pkmn_result)
 
@@ -99,14 +148,15 @@ class Result:
             f"player 2 choice: {self.p2_choice_type()})"
         )
 
-
 class Choice:
     """Represents a choice a player makes in a Pokémon battle.
 
-    Python version of pkmn_choice.
+    Consumers of the PyKMN library should NEVER construct this class themselves, but instead
+    use the `pykmn.engine.gen1.Battle.possible_choices` method to get a list of valid `Choice`s,
+    or construct the initial choice with `Choice.PASS`.
 
-    Consumers of the PyKMN library should not construct this class themselves, but instead
-    use the `possible_choices` method of the Battle class for the generation they are simulating.
+    **If you construct this class yourself, it may be invalid and cause crashes or wrong behavior
+    from libpkmn!**
     """
 
     def __init__(
@@ -114,24 +164,39 @@ class Choice:
         _pkmn_choice: int,
         _libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
     ) -> None:
-        """DON'T CALL THIS CONSTRUCTOR.
-
-        If you pass an invalid choice to libpkmn, it may behave unpredictably or cause errors.
-
-        Use the `possible_choices` method of the Battle class to get Choice objects.
-        """
+        """You don't need to use this!"""
         self._pkmn_choice = _pkmn_choice  # uint8_t
         self._libpkmn = _libpkmn
 
     @staticmethod
     def PASS() -> "Choice":
-        """Create a PASS choice."""
+        r"""Construct a `Choice` that represents a player doing nothing.
+
+        Most commonly used at the start of a battle to simulate both players sending out their
+        first Pokémon:
+
+        ```python
+        from pykmn.engine import common, gen1, protocol
+
+        battle = gen1.Battle(...)
+        (result, trace) = battle.update(common.Choice.PASS(), common.Choice.PASS())
+
+        print("\n".join(protocol.parse_protocol(trace)))
+        # |switch|p1a: Pokémon #1|...
+        # |switch|p2a: Pokémon #1|...
+        # |turn|1
+        ```
+
+        Returns:
+            **`Choice`**: A `Choice` that represents a player doing nothing.
+        """
         return Choice(0)
 
     def type(self) -> ChoiceType:
-        """Get the type of the choice (pass/move/switch).
+        """Get the type of the choice (move, switch, or pass).
 
-        Python version of pkmn_choice_type.
+        Returns:
+            **`ChoiceType`**: The type of the choice.
         """
         return ChoiceType(self._libpkmn.lib.pkmn_choice_type(self._pkmn_choice))
 
@@ -139,7 +204,8 @@ class Choice:
         """Get the data associated with the choice.
 
         Returns:
-            **`int | None`**: slot number for a switch or move index for a move
+            **`int | None`**: slot number for a switch,
+            move index for a move, and `None` for a pass.
         """
         if self.type() == ChoiceType.PASS:
             return None

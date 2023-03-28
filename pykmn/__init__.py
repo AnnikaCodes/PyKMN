@@ -34,6 +34,11 @@ If the default performance isn't sufficient, the following tips can lead to sign
   If you don't need to inspect battle protocol,
   choosing a build without protocol trace logging can be significantly faster.
   See `pykmn.engine.libpkmn` for more details.
+* Use raw choices if you don't need to inspect what the choices are.
+  Call `pykmn.engine.gen1.Battle.possible_choices_raw` to get the choices,
+  and then update the battle with `pykmn.engine.gen1.Battle.update_raw`.
+  This way, you won't have any methods to tell what the choices are — but not instantiating
+  those classes will save time!
 * Consider switching to the [PyPy](https://www.pypy.org/) Python interpreter.
   PyKMN is fully compatible with PyPy, and PyKMN will run around 10 times faster when using PyPy.
   However, not all libraries support PyPy; if you're using [pytorch](https://github.com/pytorch/pytorch/issues/17835)
