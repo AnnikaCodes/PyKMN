@@ -8,7 +8,7 @@ from pykmn.data.gen1 import SPECIES
 class TestGen1StatCalculation(unittest.TestCase):
     """Test cases."""
 
-    def test_gengar_matches_ps_calculator(self):
+    def test_gengar_matches_ps_calculator(self) -> None:
         """Gengar's stats match those calculated by calc.pokemonshowdown.com."""
         gengar_stats = SPECIES['Gengar']['stats']
 
@@ -21,7 +21,7 @@ class TestGen1StatCalculation(unittest.TestCase):
             323,
         )
 
-    def test_vulpix_hp(self):
+    def test_vulpix_hp(self) -> None:
         """Vulpix's HP stat is calculated correctly."""
         vulpix_stats = SPECIES['Vulpix']['stats']
         self.assertEqual(
@@ -29,7 +29,7 @@ class TestGen1StatCalculation(unittest.TestCase):
             251,
         )
 
-    def test_porygon_hp(self):
+    def test_porygon_hp(self) -> None:
         """Porygon's HP stat is calculated = to JS."""
         porygon_stats = SPECIES['Porygon']['stats']
         self.assertEqual(
@@ -37,7 +37,7 @@ class TestGen1StatCalculation(unittest.TestCase):
             310,
         )
 
-    def test_psyduck_hp(self):
+    def test_psyduck_hp(self) -> None:
         """Psyduck's HP stat is calculated = to JS."""
         psyduck_stats = SPECIES['Psyduck']['stats']
         self.assertEqual(
@@ -45,7 +45,7 @@ class TestGen1StatCalculation(unittest.TestCase):
             39,
         )
 
-    def test_from_pkmn(self):
+    def test_from_pkmn(self) -> None:
         """Stat calculation tests from the pkmn project."""
         gyarados_stats = SPECIES['Gyarados']['stats']
         self.assertEqual(

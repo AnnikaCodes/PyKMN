@@ -1,5 +1,6 @@
 """Python wrappers for libpkmn's random number generation features."""
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
+from typing import Any
 
 
 class ShowdownRNG:
@@ -11,27 +12,43 @@ class ShowdownRNG:
 
     def __init__(
         self,
-        _pkmn_psrng,
+        _pkmn_psrng: Any, # noqa: ANN401
         seed: int,
-        libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
+        _libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
     ) -> None:
         """Create a new ShowdownRNG instance with the given seed.
 
+        PyKMN library consumers shouldn't use this since it involves CFFI data.
+        Instead, use the static ShowdownRNG.from_seed() method.
+
         Args:
+            _pkmn_psrng (Any): A pkmn_psrng struct.
             seed (int): The seed for the RNG. Must be a 64-bit integer.
+            _libpkmn (LibpkmnBinding): The libpkmn to use. Defaults to libpkmn_showdown_trace.
         """
         # pointer to a pkmn_psrng / PKMN_OPAQUE(PKMN_PSRNG_SIZE) / struct { uint8_t bytes[8]; }
         self._psrng = _pkmn_psrng
-        self._libpkmn = libpkmn
-        ShowdownRNG.initialize(self._psrng, seed, libpkmn=libpkmn)
+        self._libpkmn = _libpkmn
+        ShowdownRNG._initialize(self._psrng, seed, _libpkmn=_libpkmn)
 
 
     @staticmethod
-    def initialize(bytes, seed: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace) -> None:
-        libpkmn.lib.pkmn_psrng_init(bytes, seed)
+    def _initialize(
+        bytes: Any, # noqa: ANN401
+        seed: int,
+        _libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
+    ) -> None:
+        """Initializes the ShowdownRNG by calling libpkmn's pkmn_psrng_init() function.
+
+        Args:
+            bytes (Any): A pkmn_psrng struct.
+            seed (int): The seed for the RNG. Must be a 64-bit integer.
+            _libpkmn (LibpkmnBinding, optional): Defaults to libpkmn_showdown_trace.
+        """
+        _libpkmn.lib.pkmn_psrng_init(bytes, seed)
 
     @staticmethod
-    def from_seed(seed: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace):
+    def from_seed(seed: int, _libpkmn: LibpkmnBinding = libpkmn_showdown_trace) -> "ShowdownRNG":
         """Create a new ShowdownRNG instance with the given seed.
 
         Args:
@@ -40,7 +57,7 @@ class ShowdownRNG:
         Returns:
             ShowdownRNG: The new RNG instance.
         """
-        return ShowdownRNG(libpkmn.ffi.new("pkmn_psrng *"), seed, libpkmn=libpkmn)
+        return ShowdownRNG(_libpkmn.ffi.new("pkmn_psrng *"), seed, _libpkmn=_libpkmn)
 
     def next(self) -> int:
         """Get the next number from the ShowdownRNG.

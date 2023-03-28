@@ -1,5 +1,4 @@
-"""
-A implementation of the @pkmn/engine benchmark for PyKMN.
+"""A implementation of the @pkmn/engine benchmark for PyKMN.
 
 See: https://github.com/pkmn/engine/blob/main/src/test/benchmark/
 """
@@ -7,7 +6,7 @@ See: https://github.com/pkmn/engine/blob/main/src/test/benchmark/
 import sys
 import time
 import random
-from typing import List, cast
+from typing import cast, TypeVar
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.common import ResultType, Player
 from pykmn.engine.gen1 import Battle, PokemonData, Moveset
@@ -16,7 +15,7 @@ from pykmn.engine.libpkmn import libpkmn_no_trace, libpkmn_trace, libpkmn_showdo
     libpkmn_showdown_no_trace, LibpkmnBinding
 
 # https://github.com/pkmn/engine/blob/main/src/test/blocklist.json
-MOVES_BANISHED_TO_THE_SHADOW_REALM: List[str] = [
+MOVES_BANISHED_TO_THE_SHADOW_REALM: list[str] = [
     "Bind",
     "Wrap",
     "Counter",
@@ -30,23 +29,20 @@ MOVES_BANISHED_TO_THE_SHADOW_REALM: List[str] = [
     "Transform",
 ]
 
-species_list: List[str] = list(SPECIES_IDS)
+species_list: list[str] = list(SPECIES_IDS)
 assert len(species_list) == 151 + 1
-moves_list: List[str] = list(MOVES)
+moves_list: list[str] = list(MOVES)
 assert len(moves_list) == 165
 
-# big endian
-def u64_to_4_u16s(seed: int):
-    return ",".join([str(x) for x in[
-        (seed >> 48) & 0xFFFF,
-        (seed >> 32) & 0xFFFF,
-        (seed >> 16) & 0xFFFF,
-        seed & 0xFFFF,
-    ]])
-
 def new_seed(prng: ShowdownRNG) -> int:
-    # print(f"in newseed: {u64_to_4_u16s(prng.seed())}")
-    # https://github.com/pkmn/engine/blob/main/src/test/integration/common.ts#L505-L507
+    """Creates a new seed from an existing RNG, like the @pkmn/engine benchmark.
+
+    Args:
+        prng (ShowdownRNG): The RNG to use.
+
+    Returns:
+        int: A new 64-bit RNG seed.
+    """
     return (
         (prng.in_range(0, 0x10000) << 48) |
         (prng.in_range(0, 0x10000) << 32) |
@@ -54,8 +50,15 @@ def new_seed(prng: ShowdownRNG) -> int:
         prng.in_range(0, 0x10000)
     )
 
-def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
-    # print(f"before genteam: {u64_to_4_u16s(prng.seed())}")
+def generate_team(prng: ShowdownRNG) -> list[PokemonData]:
+    """Generates a random team of Pokémon, like the @pkmn/engine benchmark.
+
+    Args:
+        prng (ShowdownRNG): The RNG to use.
+
+    Returns:
+        list[PokemonData]: A list of Pokémon data.
+    """
     team = []
     n = 6
     if prng.random_chance(1, 100):
@@ -84,7 +87,7 @@ def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
         num_moves = 4
         if prng.random_chance(1, 100):
             num_moves = prng.in_range(1, 3 + 1)
-        moves: List[str] = []
+        moves: list[str] = []
         # print(f"before moveloop: {u64_to_4_u16s(prng.seed())}")
         while len(moves) < num_moves:
             move = list(MOVES)[prng.in_range(1, 164 + 1) - 1] # 164 to exclude Struggle
@@ -102,7 +105,17 @@ def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
     # print(f"after genteam: {u64_to_4_u16s(prng.seed())}")
     return team
 
-def random_pick(prng: ShowdownRNG, choices: list):
+T = TypeVar('T')
+def random_pick(prng: ShowdownRNG, choices: list[T]) -> T:
+    """Picks a random element from a list with a ShowdownRNG.
+
+    Args:
+        prng (ShowdownRNG): The RNG to use.
+        choices (list[T]): The list to pick from.
+
+    Returns:
+        T: The randomly chosen element.
+    """
     return choices[prng.in_range(0, len(choices))]
 
 try:
@@ -112,12 +125,19 @@ except IndexError:
     print(f"Usage: python3 {sys.argv[0]} <number of battles> <RNG seed>")
     sys.exit(1)
 
-def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding):
+def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding) -> None:
+    """Runs the libpkmn-style benchmark.
+
+    Args:
+        battles (int): The number of battles to run.
+        rng_seed (int): The initial seed to use for the RNG.
+        libpkmn (LibpkmnBinding): The libpkmn binding to use.
+    """
     duration = 0
     turns = 0
     prng = ShowdownRNG.from_seed(rng_seed)
 
-    for i in range(battles):
+    for _ in range(battles):
         p1_team = generate_team(prng)
         p2_team = generate_team(prng)
         battle_seed = new_seed(prng)

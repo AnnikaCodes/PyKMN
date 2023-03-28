@@ -8,21 +8,30 @@ from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import List, Tuple, cast, TypedDict, Literal, Union
+from typing import cast, TypedDict, Literal, Union
+from collections.abc import Sequence
 from enum import IntEnum
 from collections import namedtuple
 import math
 import random
 
-"""Pythonic API to get info about a Pokémon status."""
 class Status:
+    """Represents a Pokémon's status."""
     _SLP = 2
     _PSN = 3
     _BRN = 4
     _FRZ = 5
     _PAR = 6
 
-    def __init__(self, raw_status: int):
+    def __init__(self, raw_status: int) -> None:
+        """Creates a new Status object.
+
+        PyKMN library consumers should use the static methods to create Status objects instead;
+        this constructor takes a raw value from libpkmn.
+
+        Args:
+            raw_status (int): The raw status value from libpkmn.
+        """
         self._value = raw_status
 
     def asleep(self) -> bool:
@@ -84,19 +93,19 @@ class Status:
         return ((self._value >> Status._PSN) & 1) != 0
 
     @staticmethod
-    def SLEEP(duration: int) -> int:
+    def SLEEP(duration: int) -> "Status":
         """Returns the raw status value for a sleeping Pokémon.
 
         Args:
             duration (int): The duration of the sleep.
 
         Returns:
-            int: _description_
+            Status: The Status
         """
-        return duration
+        return Status(duration)
 
     @staticmethod
-    def HEALTHY():
+    def HEALTHY() -> "Status":
         """Returns the raw status value for a healthy Pokémon.
 
         Returns:
@@ -105,7 +114,7 @@ class Status:
         return Status(0)
 
     @staticmethod
-    def POISONED():
+    def POISONED() -> "Status":
         """Returns the raw status value for a poisoned Pokémon.
 
         Returns:
@@ -114,7 +123,7 @@ class Status:
         return Status(1 << Status._PSN)
 
     @staticmethod
-    def BURNED():
+    def BURNED() -> "Status":
         """Returns the raw status value for a burned Pokémon.
 
         Returns:
@@ -123,7 +132,7 @@ class Status:
         return Status(1 << Status._BRN)
 
     @staticmethod
-    def FROZEN():
+    def FROZEN() -> "Status":
         """Returns the raw status value for a frozen Pokémon.
 
         Returns:
@@ -132,7 +141,7 @@ class Status:
         return Status(1 << Status._FRZ)
 
     @staticmethod
-    def PARALYZED():
+    def PARALYZED() -> "Status":
         """Returns the raw status value for a paralyzed Pokémon.
 
         Returns:
@@ -141,7 +150,7 @@ class Status:
         return Status(1 << Status._PAR)
 
     @staticmethod
-    def SELF_INFLICTED_SLEEP(duration: int):
+    def SELF_INFLICTED_SLEEP(duration: int) -> "Status":
         """Returns the raw status value for a self-inflicted sleep.
 
         Args:
@@ -153,6 +162,11 @@ class Status:
         return Status(0x80 | duration)
 
     def __repr__(self) -> str:
+        """Returns a human-readable representation of the status.
+
+        Returns:
+            str: A human-readable representation of the status.
+        """
         if self.burned():
             return "Status(burned)"
         elif self.frozen():
@@ -172,17 +186,25 @@ class Status:
 
 # enum-izing moves only brings us from 822 battles/sec to 816
 
-MovePP = Tuple[str, int]
-FullMoveset = Tuple[str, str, str, str]
-Moveset = Union[FullMoveset, Tuple[str], Tuple[str, str], Tuple[str, str, str]]
+MovePP = tuple[str, int]
+FullMoveset = tuple[str, str, str, str]
+Moveset = Union[FullMoveset, tuple[str], tuple[str, str], tuple[str, str, str]]
 SpeciesName = str
-ExtraPokemonData = TypedDict('ExtraPokemonData', {
-    'hp': int, 'status': Status, 'level': int, 'stats': Gen1StatData,
-    'types': Tuple[str, str], 'move_pp': Tuple[int, int, int, int],
-    'dvs': Gen1StatData, 'exp': Gen1StatData,
-}, total=False)
-PokemonData = Union[Tuple[SpeciesName, Moveset], Tuple[SpeciesName, Moveset, ExtraPokemonData]]
+
+class ExtraPokemonData(TypedDict, total=False):
+    """Extra data that can be specified about a Pokémon, such as HP, status, and DVs."""
+    hp: int
+    status: Status
+    level: int
+    stats: Gen1StatData
+    types: tuple[str, str]
+    move_pp: tuple[int, int, int, int]
+    dvs: Gen1StatData
+    exp: Gen1StatData
+
+PokemonData = Union[tuple[SpeciesName, Moveset], tuple[SpeciesName, Moveset, ExtraPokemonData]]
 PokemonSlot = Union[Literal[1], Literal[2], Literal[3],Literal[4], Literal[5], Literal[6]]
+
 BoostData = TypedDict('BoostData', {
     'atk': int,
     'def': int,
@@ -191,6 +213,7 @@ BoostData = TypedDict('BoostData', {
     'accuracy': int,
     'evasion': int,
 }) # optimization: is a namedtuple/class faster than a dict?
+
 PartialBoostData = TypedDict('PartialBoostData', {
     'atk': int,
     'def': int,
@@ -202,6 +225,7 @@ PartialBoostData = TypedDict('PartialBoostData', {
 DisableData = namedtuple('DisableData', ['move_slot', 'turns_left'])
 
 class VolatileFlag(IntEnum):
+    """Flags for Pokémon's volatile statuses."""
     Bide = LAYOUT_OFFSETS['Volatiles']['Bide']
     Thrashing = LAYOUT_OFFSETS['Volatiles']['Thrashing']
     MultiHit = LAYOUT_OFFSETS['Volatiles']['MultiHit']
@@ -232,9 +256,10 @@ def statcalc(
 
     Args:
         base_value (int): The base value of the stat for this species.
-        dv (int): The Pokémon's DV for this stat.
+        is_HP (bool, optional): Whether the stat is HP or not. Defaults to False.
         level (int): The level of the Pokémon.
-        HP (bool, optional): Whether the stat is HP or not. Defaults to False.
+        dv (int): The Pokémon's DV for this stat.
+        experience (int): The Pokémon's stat experience for this stat.
 
     Returns:
         int: The value of the stat
@@ -258,15 +283,15 @@ def statcalc(
 
 # Optimization: remove debug asserts
 
-Gen1RNGSeed = List[int]
+Gen1RNGSeed = list[int]
 
 class Battle:
     """A Generation I Pokémon battle."""
 
     def __init__(
         self,
-        p1_team: List[PokemonData],
-        p2_team: List[PokemonData],
+        p1_team: Sequence[PokemonData],
+        p2_team: Sequence[PokemonData],
         p1_last_selected_move: str = 'None',
         p1_last_used_move: str = 'None',
         p2_last_selected_move: str = 'None',
@@ -277,7 +302,7 @@ class Battle:
         p2_move_idx: int = 0,
         rng_seed: Union[int, Gen1RNGSeed, None] = None,
         libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
-    ):
+    ) -> None:
         """Initialize a new battle.
 
         Args:
@@ -358,10 +383,10 @@ class Battle:
                     "Cannot provide a list as RNG seed to a Showdown-compatible libpkmn."
                 )
 
-            ShowdownRNG.initialize(bytes=self._libpkmn.ffi.cast(
+            ShowdownRNG._initialize(bytes=self._libpkmn.ffi.cast(
                 "pkmn_psrng *",
                 self._pkmn_battle.bytes[offset:(offset + self._libpkmn.lib.PKMN_PSRNG_SIZE)],
-            ), seed=rng_seed, libpkmn=self._libpkmn)
+            ), seed=rng_seed, _libpkmn=self._libpkmn)
         else:
             # libpkmn (no Showdown compatibility) initialization for move indexes RNG
             self._pkmn_battle.bytes[offset] = pack_two_u4s(p1_move_idx, p2_move_idx)
@@ -380,9 +405,8 @@ class Battle:
                 for (i, seed) in enumerate(rng_seed):
                     self._pkmn_battle.bytes[offset + i] = seed
 
-    def _initialize_pokemon(self, battle_offset: int, pokemon_data: PokemonData):
+    def _initialize_pokemon(self, battle_offset: int, pokemon_data: PokemonData) -> None:
         """Initialize a Pokémon in a battle."""
-
         hp = None
         status = 0
         level = 100
@@ -393,7 +417,7 @@ class Battle:
         exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535}
         if len(pokemon_data) == 3:
             species_name, move_names, extra_data = \
-                cast(Tuple[SpeciesName, Moveset, ExtraPokemonData], pokemon_data)
+                cast(tuple[SpeciesName, Moveset, ExtraPokemonData], pokemon_data)
             # possible optimization: is it faster to pass this as an array/extra parameters
             # and avoid dict lookups?
             if 'hp' in extra_data:
@@ -413,7 +437,7 @@ class Battle:
             if 'exp' in extra_data:
                 exp = extra_data['exp']
         else:
-            species_name, move_names = cast(Tuple[SpeciesName, Moveset], pokemon_data)
+            species_name, move_names = cast(tuple[SpeciesName, Moveset], pokemon_data)
 
         if species_name == 'None':
             if stats is None:
@@ -504,7 +528,7 @@ class Battle:
             LAYOUT_OFFSETS['Side']['last_selected_move']
         return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
-    def set_last_selected_move(self, player: Player, move: str):
+    def set_last_selected_move(self, player: Player, move: str) -> None:
         """Set the last move selected by a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -518,7 +542,7 @@ class Battle:
             LAYOUT_OFFSETS['Side']['last_used_move']
         return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
-    def set_last_used_move(self, player: Player, move: str):
+    def set_last_used_move(self, player: Player, move: str) -> None:
         """Set the last move used by a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -561,15 +585,6 @@ class Battle:
             LAYOUT_OFFSETS['ActivePokemon']['species']
         return SPECIES_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
-    def _rng(self) -> ShowdownRNG:
-        """i am for debugging. if you call me i will be weird."""
-        if self._libpkmn.lib.IS_SHOWDOWN_COMPATIBLE != 1:
-            raise Exception("no")
-        offset = LAYOUT_OFFSETS['Battle']['rng']
-        # get the seed as a u64 with bit math
-        rng = ShowdownRNG.from_seed(0, self._libpkmn)
-        rng._psrng = self._pkmn_battle.bytes[offset:(offset + self._libpkmn.lib.PKMN_PSRNG_SIZE)]
-        return rng
     def set_active_pokemon_species(self, player: Player, new_species: str) -> None:
         """Set the species of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -578,7 +593,7 @@ class Battle:
             LAYOUT_OFFSETS['ActivePokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def active_pokemon_types(self, player: Player) -> Union[Tuple[str, str], Tuple[str]]:
+    def active_pokemon_types(self, player: Player) -> Union[tuple[str, str], tuple[str]]:
         """Get the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -691,8 +706,7 @@ class Battle:
         )
 
     def attacks_left(self, player: Player) -> int:
-        """
-        Get the attacks left counter of the active Pokémon.
+        """Get the attacks left counter of the active Pokémon.
 
         This counter is used for Bide and Thrash.
         """
@@ -711,8 +725,7 @@ class Battle:
         )
 
     def set_attacks_left(self, player: Player, new_attacks_left: int) -> None:
-        """
-        Set the attacks left counter of the active Pokémon.
+        """Set the attacks left counter of the active Pokémon.
 
         This counter is used for Bide and Thrash.
         """
@@ -735,8 +748,7 @@ class Battle:
         )
 
     def volatile_state(self, player: Player) -> int:
-        """
-        Get the volatile state of the active Pokémon of a player.
+        """Get the volatile state of the active Pokémon of a player.
 
         This 16-bit unsigned integer is used to track the amount of damage accumulated for Bide,
         and to store data for certain accuracy-related bugs.
@@ -755,8 +767,7 @@ class Battle:
         return unpack_u16_from_bytes(bytes[offset], bytes[offset + 1])
 
     def set_volatile_state(self, player: Player, new_state: int) -> None:
-        """
-        Set the volatile state of the active Pokémon of a player.
+        """Set the volatile state of the active Pokémon of a player.
 
         This 16-bit unsigned integer is used to track the amount of damage accumulated for Bide,
         and to store data for certain accuracy-related bugs.
@@ -794,7 +805,7 @@ class Battle:
     def set_active_pokemon_types(
         self,
         player: Player,
-        new_types: Union[Tuple[str, str], Tuple[str]]
+        new_types: Union[tuple[str, str], tuple[str]]
     ) -> None:
         """Set the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -806,7 +817,7 @@ class Battle:
             TYPES.index(new_types[1 if len(new_types) == 2 else 0]),
         )
 
-    def transformed_into(self, player: Player) -> Tuple[Player, PokemonSlot]:
+    def transformed_into(self, player: Player) -> tuple[Player, PokemonSlot]:
         """Get the player and slot of the Pokémon that the active Pokémon transformed into."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -827,7 +838,7 @@ class Battle:
     def set_transformed_into(
         self,
         player: Player,
-        new_transformed_into: Tuple[Player, PokemonSlot]
+        new_transformed_into: tuple[Player, PokemonSlot]
     ) -> None:
         """Set the player and slot that the active Pokémon transformed into."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -957,10 +968,7 @@ class Battle:
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_last_damage)
 
     def last_used_move_index(self, player: Player) -> int:
-        """
-        Get the index within the move array of the Pokémon that was active when the move was used
-        of the last move used by a given player.
-        """
+        """Get the index within the move arrayof the last move used by a given player."""
         offset = LAYOUT_OFFSETS['Battle']['last_selected_indexes'] + player
         return unpack_u16_from_bytes(
             self._pkmn_battle.bytes[offset],
@@ -1024,7 +1032,7 @@ class Battle:
             offset += 2
 
     # TODO: is this the most performant way to do this? Maybe an enum or separate method?
-    def moves(self, player: Player, pokemon: Union[PokemonSlot, Literal['Active']]) -> Moveset:
+    def moves(self, player: Player, pokemon: Union[PokemonSlot, Literal["Active"]]) -> Moveset:
         """Get the moves of a Pokémon."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1049,8 +1057,8 @@ class Battle:
     def pp_left(
         self,
         player: Player,
-        pokemon: Union[PokemonSlot, Literal['Active']]
-    ) -> Tuple[int, ...]:
+        pokemon: Union[PokemonSlot, Literal["Active"]]
+    ) -> tuple[int, ...]:
         """Get the PP left of a Pokémon's moves."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1072,8 +1080,8 @@ class Battle:
     def moves_with_pp(
         self,
         player: Player,
-        pokemon: Union[PokemonSlot, Literal['Active']]
-    ) -> Tuple[MovePP, ...]:
+        pokemon: Union[PokemonSlot, Literal["Active"]]
+    ) -> tuple[MovePP, ...]:
         """Get the moves of a Pokémon with their PP."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1096,8 +1104,8 @@ class Battle:
     def set_moves(
         self,
         player: Player,
-        pokemon: Union[PokemonSlot, Literal['Active']],
-        new_moves: Tuple[MovePP, MovePP, MovePP, MovePP]
+        pokemon: Union[PokemonSlot, Literal["Active"]],
+        new_moves: tuple[MovePP, MovePP, MovePP, MovePP]
     ) -> None:
         """Set the moves of a Pokémon."""
         if not isinstance(pokemon, int):
@@ -1152,7 +1160,7 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def types(self, player: Player, pokemon: PokemonSlot) -> Union[Tuple[str, str],  Tuple[str]]:
+    def types(self, player: Player, pokemon: PokemonSlot) -> Union[tuple[str, str], tuple[str]]:
         """Get the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -1162,7 +1170,7 @@ class Battle:
         (type1, type2) = unpack_two_u4s(self._pkmn_battle.bytes[offset])
         return (TYPES[type1], TYPES[type2]) if type2 != type1 else (TYPES[type1],)
 
-    def set_types(self, player: Player, pokemon: PokemonSlot, new_types: Tuple[str, str]) -> None:
+    def set_types(self, player: Player, pokemon: PokemonSlot, new_types: tuple[str, str]) -> None:
         """Set the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -1192,7 +1200,7 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['level']
         self._pkmn_battle.bytes[offset] = new_level
 
-    def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
+    def update(self, p1_choice: Choice, p2_choice: Choice) -> tuple[Result, list[int]]:
         """Update the battle with the given choice.
 
         Args:
@@ -1205,7 +1213,7 @@ class Battle:
         """
         return self.update_raw(p1_choice._pkmn_choice, p2_choice._pkmn_choice)
 
-    def update_raw(self, p1_choice: int, p2_choice: int) -> Tuple[Result, List[int]]:
+    def update_raw(self, p1_choice: int, p2_choice: int) -> tuple[Result, list[int]]:
         """Update the battle with the given choice.
 
         This method accepts raw integers for choices instead of Choice objects.
@@ -1227,7 +1235,7 @@ class Battle:
             self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
         )
 
-        result = Result(_pkmn_result, libpkmn=self._libpkmn)
+        result = Result(_pkmn_result, _libpkmn=self._libpkmn)
         if result.is_error():
             # per pkmn.h:
             # This can only happen if libpkmn was built with trace logging enabled and the buffer
@@ -1245,10 +1253,10 @@ class Battle:
         self,
         player: Player,
         previous_turn_result: Result,
-    ) -> List[Choice]:
+    ) -> list[Choice]:
         """Get the possible choices for the given player.
 
-            Args:
+        Args:
             player (Player): The player to get choices for.
             previous_turn_result (Result): The result of the previous turn
                 (the first turn should be two PASS choices).
@@ -1263,16 +1271,16 @@ class Battle:
         if num_choices == 0:
             raise Softlock("Zero choices are available.")
 
-        choices: List[Choice] = []
+        choices: list[Choice] = []
         for i in range(num_choices):
-            choices.append(Choice(self._choice_buf[i], libpkmn=self._libpkmn))
+            choices.append(Choice(self._choice_buf[i], _libpkmn=self._libpkmn))
         return choices
 
     def possible_choices_raw(
         self,
         player: Player,
         previous_turn_result: Result,
-    ) -> List[int]:
+    ) -> list[int]:
         """Get the possible choices for the given player.
 
         This method returns raw integers instead of Choice objects.

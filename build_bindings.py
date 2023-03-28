@@ -11,7 +11,8 @@ import sys
 import hashlib
 import os
 from pathlib import Path
-from typing import Union, Tuple, List
+from enum import Enum
+from typing import Union
 
 # from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
 MINIMUM_ZIG_MAJOR_VERSION = 0
@@ -21,24 +22,26 @@ MINIMUM_ZIG_DEV_VERSION = 2168
 
 ZIG_DOWNLOAD_INDEX_URL = 'https://ziglang.org/download/index.json'
 
-GREEN = '\033[92m'
-ORANGE = '\033[93m'
-RED = '\033[91m'
+class Color(Enum):
+    """An enum of terminal colors."""
+    GREEN = '\033[92m'
+    ORANGE = '\033[93m'
+    RED = '\033[91m'
 
 downloaded_zig = ""
 
 indent = 1
 
 
-def log(message: str, color=GREEN) -> None:
+def log(message: str, color: Color = Color.GREEN) -> None:
     """Log a message to the console with progressing arrows and color.
 
     Args:
         message (str): the message to log
-        color (str, optional): the terminal color string to print with it. Defaults to GREEN.
+        color (Color, optional): the terminal color string to print with it. Defaults to GREEN.
     """
     global indent
-    print(f"{color}{'=' * indent}> {message}\033[0m")
+    print(f"{color.value}{'=' * indent}> {message}\033[0m")
     indent += 1
 
 # First, we need to find/install Zig
@@ -46,7 +49,7 @@ def log(message: str, color=GREEN) -> None:
 # https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine
 
 
-def parse_zig_version(version: str) -> Tuple[int, int, int, Union[int, None]]:
+def parse_zig_version(version: str) -> tuple[int, int, int, Union[int, None]]:
     """Parse a Zig version string.
 
     Args:
@@ -74,7 +77,7 @@ def parse_zig_version(version: str) -> Tuple[int, int, int, Union[int, None]]:
     return (major, minor, patch, dev)
 
 
-def is_new_enough(version: Tuple[int, int, int, Union[int, None]]) -> bool:
+def is_new_enough(version: tuple[int, int, int, Union[int, None]]) -> bool:
     """Check if a Zig version can build libpkmn based on the constants in this file.
 
     Args:
@@ -138,7 +141,7 @@ def find_zig() -> str:
         else:
             log(
                 f"Found installed Zig, but the version ({system_zig_env['version']}) is too old :(",
-                color=ORANGE,
+                color=Color.ORANGE,
             )
 
     log("Fetching Zig download index")
@@ -166,7 +169,7 @@ def find_zig() -> str:
         log(
             f"Couldn't find a Zig compiler for your platform ({zig_platform}). " +
             "Please manually install Zig; version {version} should be compatible with PyKMN.",
-            color=RED
+            color=Color.RED,
         )
         exit(1)
 
@@ -192,9 +195,9 @@ def find_zig() -> str:
         log(
             f"SHA-256 hash for downloaded Zig doesn't match (got {hash_value}, " +
             f"expected {zig_download_index[version][zig_platform]['shasum']})",
-            color=RED,
+            color=Color.RED,
         )
-        log("The download may be corrupted; please try again.", color=RED)
+        log("The download may be corrupted; please try again.", color=Color.RED)
         exit(1)
     else:
         log(f"Verified downloaded Zig (hash={hash_value})")
@@ -208,7 +211,7 @@ def find_zig() -> str:
     return downloaded_zig
 
 
-def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
+def build_pkmn_engine(out_dir: str, options: list[str]) -> None:
     """Build libpkmn, populating the zig-out directory with a library file."""
     try:
         lib_dir = Path(os.path.join(out_dir, "lib"))
@@ -225,7 +228,7 @@ def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
                 if library_mtime > source_mtime:
                     log(
                         "No change to libpkmn source files since last build, skipping rebuild",
-                        color=ORANGE
+                        color=Color.ORANGE
                     )
                     return
             except StopIteration:
@@ -241,7 +244,7 @@ def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
         if 'PYKMN_DEBUG' in os.environ and os.environ['PYKMN_DEBUG'] != '':
             log(
                 f"Building libpkmn in Debug mode with flags {options} with Zig at {zig_path}",
-                color=ORANGE
+                color=Color.ORANGE
             )
             args.append('-Doptimize=Debug')
         else:
@@ -250,7 +253,7 @@ def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
             args.append('-Dstrip')
         subprocess.call(args, cwd="engine")
     except Exception as e:
-        log(f"Failed to build libpkmn. Error: {e}", color=RED)
+        log(f"Failed to build libpkmn. Error: {e}", color=Color.RED)
         exit(1)
 
 
@@ -310,7 +313,7 @@ for (ffi, name, options) in [
         pkmn_h_path = os.path.join(output_dir, "include", "pkmn.h")
         has_showdown = "-Dshowdown=true" in options
 
-        header_text = open(pkmn_h_path, 'r').read()
+        header_text = open(pkmn_h_path).read()
         bonus_headers = (
             f"\n#define IS_SHOWDOWN_COMPATIBLE {1 if has_showdown else 0}" +
             f"\n#define HAS_TRACE {1 if '-Dtrace=true' in options else 0}"

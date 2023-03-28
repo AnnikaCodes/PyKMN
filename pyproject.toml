@@ -27,3 +27,8 @@ py-modules = ["pykmn.engine", "pykmn.data"]
 
 [tool.ruff]
 line-length = 100
+select = ["E", "F", "UP", "D", "TCH", "ANN"]
+ignore = ["D401", "D407", "ANN101", "UP007"]
+
+[tool.ruff.pydocstyle]
+convention = "google"

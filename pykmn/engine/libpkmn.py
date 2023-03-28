@@ -8,14 +8,14 @@ import libpkmn_showdown_no_trace as _showdown_no_trace # type: ignore
 from typing import Any
 
 # TODO: document how to use these bindings
-"""
-A generic type for libpkmn library bindings.
-
-This isn't actually a class; it's just here to make typing work well.
-You definitely shouldn't ever construct it.
-Instead, import a libpkmn binding from pykmn.engine.libpkmn.
-"""
 class LibpkmnBinding:
+    """A generic type for libpkmn library bindings.
+
+    This isn't actually a class; it's just here to make typing work well.
+    You definitely shouldn't ever construct it.
+    Instead, import a libpkmn binding from pykmn.engine.libpkmn.
+    """
+
     ffi: Any
     lib: Any
 

@@ -23,7 +23,9 @@ all_libpkmn = showdown_libpkmn + non_showdown_libpkmn
 # if desired, can bring back tests for Pokemon/Side stuff that were removed in refactor
 
 class TestBattle(unittest.TestCase):
-    def test_active_pokemon_stats(self):
+    """Tests for Gen I battles."""
+
+    def test_active_pokemon_stats(self) -> None:
         """Tests stat-boosting moves."""
         for libpkmn in all_libpkmn:
             battle = Battle(
@@ -64,16 +66,26 @@ class TestBattle(unittest.TestCase):
 
             self.assertEqual(p1_active_stats['def'], int(p1_original_stats['def'] * 0.66))
 
-            for unchanged_stat in ['hp', 'spc', 'spe']:
-                self.assertEqual(p1_active_stats[unchanged_stat], p1_original_stats[unchanged_stat])
-                self.assertEqual(p2_active_stats[unchanged_stat], p2_original_stats[unchanged_stat])
+            for unchanged in ['hp', 'spc', 'spe']:
+                # https://github.com/python/mypy/issues/7178#issuecomment-509754282 uuuurgh
+                self.assertEqual(
+                    p1_active_stats[unchanged], # type: ignore
+                    p1_original_stats[unchanged], # type: ignore
+                )
+                self.assertEqual(
+                    p2_active_stats[unchanged], # type: ignore
+                    p2_original_stats[unchanged], # type: ignore
+                )
 
             battle.set_active_pokemon_stats(Player.P1, {'spc': 52, 'def': 97})
             new_active_stats = battle.active_pokemon_stats(Player.P1)
             self.assertEqual(new_active_stats['spc'], 52)
             self.assertEqual(new_active_stats['def'], 97)
             for unchanged_stat in ['hp', 'atk', 'spe']:
-                self.assertEqual(new_active_stats[unchanged_stat], p1_active_stats[unchanged_stat])
+                self.assertEqual(
+                    new_active_stats[unchanged_stat], # type: ignore
+                    p1_active_stats[unchanged_stat], # type: ignore
+                )
 
             battle.set_boosts(Player.P2, {'evasion': -1})
             self.assertDictEqual(
@@ -120,7 +132,7 @@ class TestBattle(unittest.TestCase):
             self.assertTupleEqual(battle.active_pokemon_types(Player.P1), ('Normal', ))
 
 
-    def test_last_selected_move(self):
+    def test_last_selected_move(self) -> None:
         """Tests that the last selected move is stored/loaded correctly."""
         for libpkmn in all_libpkmn:
             battle = Battle(
@@ -148,7 +160,7 @@ class TestBattle(unittest.TestCase):
             battle.set_last_selected_move(Player.P2, 'Gust')
             self.assertEqual(battle.last_selected_move(Player.P2), 'Gust')
 
-    def test_current_hp(self):
+    def test_current_hp(self) -> None:
         """Test current HP storage."""
         for libpkmn in all_libpkmn:
             # Swift chosen so that we don't have to worry about misses
@@ -332,6 +344,7 @@ class TestBattle(unittest.TestCase):
             self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
 
     def test_level(self) -> None:
+        """Tests that Pokémon level is stored/loaded correctly."""
         for libpkmn in all_libpkmn:
             battle = Battle(
                 [("Mew", ("Amnesia", ))],

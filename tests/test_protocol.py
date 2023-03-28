@@ -3,7 +3,6 @@ import unittest
 from pykmn.engine.protocol import parse_protocol
 from pykmn.data.gen1 import SPECIES_IDS, MOVE_IDS, TYPES
 from pykmn.data.protocol import MESSAGES, REASONS
-from typing import List
 
 # TODO: replace hardcoded Reasons
 
@@ -11,13 +10,11 @@ from typing import List
 class TestProtocolParsing(unittest.TestCase):
     """Test parsing protocol to PS protocol messages."""
 
-    def case(self, protocol: List[int], expected: List[str]):
+    def case(self, protocol: list[int], expected: list[str]) -> None:
         """Assert that the protocol parses to the expected message."""
         self.assertListEqual(parse_protocol(protocol), expected)
-        # for _ in range(200000):
-        #     parse_protocol(protocol)
 
-    def test_laststill(self):
+    def test_laststill(self) -> None:
         """Should parse a LastStill byte."""
         self.case(
             [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')] +
@@ -36,7 +33,7 @@ class TestProtocolParsing(unittest.TestCase):
             ]
         )
 
-    def test_lastmiss(self):
+    def test_lastmiss(self) -> None:
         """Should parse a LastMiss byte."""
         self.case(
             [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')] +
@@ -55,7 +52,7 @@ class TestProtocolParsing(unittest.TestCase):
             ]
         )
 
-    def test_move(self):
+    def test_move(self) -> None:
         """Should parse a |move| message."""
         self.case(
             [MESSAGES.index('Move'), 1, 94, 9, REASONS['Move'].index('None')],
@@ -66,14 +63,14 @@ class TestProtocolParsing(unittest.TestCase):
             ["|move|p1a: Pokémon #3|Fire Blast|p2a: Pokémon #1|[from] Metronome"],
         )
 
-    def test_switch(self):
+    def test_switch(self) -> None:
         """Should parse a |switch| message."""
         self.case([
             MESSAGES.index('Switch'), 3, SPECIES_IDS['Charizard'], 73,
             189 & 0xFF, 189 >> 8, 314 & 0xFF, 314 >> 8, 128
         ], ["|switch|p1a: Pokémon #3|Charizard, L73|189/314 tox"])
 
-    def test_cant(self):
+    def test_cant(self) -> None:
         """Should parse a |cant| message."""
         # Sleep case
         self.case(
@@ -116,24 +113,24 @@ class TestProtocolParsing(unittest.TestCase):
             ["|cant|p2a: Pokémon #1|nopp"],
         )
 
-    def test_faint(self):
+    def test_faint(self) -> None:
         """Should parse a |faint| message."""
         self.case([MESSAGES.index('Faint'), 13], ["|faint|p2a: Pokémon #5"])
 
-    def test_turn(self):
+    def test_turn(self) -> None:
         """Should parse a |turn| message."""
         for turn in [0, 1, 50, 27453]:
             self.case([MESSAGES.index('Turn'), turn & 0xFF, turn >> 8], [f"|turn|{turn}"])
 
-    def test_win(self):
+    def test_win(self) -> None:
         """Should parse a |win message."""
         self.case([MESSAGES.index('Win'), 0], ["|win|p1"])
 
-    def test_tie(self):
+    def test_tie(self) -> None:
         """Should parse a |tie message."""
         self.case([MESSAGES.index('Tie')], ["|tie"])
 
-    def test_damage(self):
+    def test_damage(self) -> None:
         """Should parse a |-damage| message."""
         self.case(
             [MESSAGES.index('Damage'), 9, 0, 0, 250, 2, 0, REASONS['Damage'].index('None')],
@@ -165,7 +162,7 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-damage|p1a: Pokémon #4|382/542 par|[from] Recoil|[of] p2a: Pokémon #2"],
         )
 
-    def test_heal(self):
+    def test_heal(self) -> None:
         """Should parse a |-heal| message."""
         # base case
         self.case(
@@ -183,7 +180,7 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-heal|p1a: Pokémon #2|91/286 brn|[from] drain|[of] p2a: Pokémon #4"],
         )
 
-    def test_status(self):
+    def test_status(self) -> None:
         """Should parse a |-status| message."""
         none = REASONS['Heal'].index('None')
         s = REASONS['Heal'].index('Silent')
@@ -198,7 +195,7 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-status|p2a: Pokémon #1|tox|[from] move: Toxic"],
         )
 
-    def test_curestatus(self):
+    def test_curestatus(self) -> None:
         """Should parse a |-curestatus| message."""
         self.case(
             [MESSAGES.index('CureStatus'), 6, 16, REASONS['CureStatus'].index('Message')],
@@ -209,7 +206,7 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-curestatus|p1a: Pokémon #5|frz|[silent]"],
         )
 
-    def test_boost_unboost(self):
+    def test_boost_unboost(self) -> None:
         """Should parse |-boost| and |-unboost| messages."""
         self.case(
             [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('Rage'), 7],
@@ -238,7 +235,7 @@ class TestProtocolParsing(unittest.TestCase):
         self.case(
             [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('SpecialDefense'), 2],
             ["|-unboost|p1a: Pokémon #3|spd|4"]
-        ),
+        )
         # Accuracy
         self.case(
             [MESSAGES.index('Boost'), 3, REASONS['Boost'].index('Accuracy'), 1],
@@ -250,11 +247,11 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-unboost|p1a: Pokémon #3|evasion|1"],
         )
 
-    def test_clearallboost(self):
+    def test_clearallboost(self) -> None:
         """Should parse a |-clearallboost| message."""
         self.case([MESSAGES.index('ClearAllBoost')], ["|-clearallboost|[silent]"])
 
-    def test_fail(self):
+    def test_fail(self) -> None:
         """Should parse a |-fail| message."""
         self.case(
             [MESSAGES.index('Fail'), 10, REASONS['Fail'].index('None')],
@@ -293,26 +290,26 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-fail|p2a: Pokémon #2|move: Substitute|[weak]"],
         )
 
-    def test_miss(self):
+    def test_miss(self) -> None:
         """Should parse a |-miss| message."""
         self.case([MESSAGES.index('Miss'), 14], ["|-miss|p2a: Pokémon #6"])
 
-    def test_hitcount(self):
+    def test_hitcount(self) -> None:
         """Should parse a |-hitcount| message."""
         self.case([MESSAGES.index('HitCount'), 1, 3], ["|-hitcount|p1a: Pokémon #1|3"])
 
-    def test_prepare(self):
+    def test_prepare(self) -> None:
         """Should parse a |-prepare| message."""
         self.case(
             [MESSAGES.index('Prepare'), 5, MOVE_IDS['Solar Beam']],
             ["|-prepare|p1a: Pokémon #5|Solar Beam"]
         )
 
-    def test_mustrecharge(self):
+    def test_mustrecharge(self) -> None:
         """Should parse a |-mustrecharge| message."""
         self.case([MESSAGES.index('MustRecharge'), 10], ["|-mustrecharge|p2a: Pokémon #2"])
 
-    def test_activate(self):
+    def test_activate(self) -> None:
         """Should parse an |-activate| message."""
         self.case(
             [MESSAGES.index('Activate'), 10, REASONS['Activate'].index('Bide')],
@@ -343,11 +340,11 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-activate||move: Splash"],
         )
 
-    def test_fieldactivate(self):
+    def test_fieldactivate(self) -> None:
         """Should parse a |-fieldactivate| message."""
         self.case([MESSAGES.index('FieldActivate')], ["|-fieldactivate|move: Pay Day"])
 
-    def test_start(self):
+    def test_start(self) -> None:
         """Should parse a |-start| message."""
         self.case(
             [MESSAGES.index('Start'), 4, REASONS['Start'].index('Bide')],
@@ -404,7 +401,7 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-start|p1a: Pokémon #4|Mimic|move: Surf"],
         )
 
-    def test_end(self):
+    def test_end(self) -> None:
         """Should parse a |-end| message."""
         self.case(
             [MESSAGES.index('End'), 5, REASONS['End'].index('Disable')],
@@ -455,23 +452,23 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-end|p1a: Pokémon #5|Reflect|[silent]"],
         )
 
-    def test_ohko(self):
+    def test_ohko(self) -> None:
         """Should parse a |-ohko| message."""
         self.case([MESSAGES.index('OHKO')], ["|-ohko"])
 
-    def test_crit(self):
+    def test_crit(self) -> None:
         """Should parse a |-crit| message."""
         self.case([MESSAGES.index('Crit'), 11], ["|-crit|p2a: Pokémon #3"])
 
-    def test_supereffective(self):
+    def test_supereffective(self) -> None:
         """Should parse a |-supereffective| message."""
         self.case([MESSAGES.index('SuperEffective'), 9], ["|-supereffective|p2a: Pokémon #1"])
 
-    def test_resisted(self):
+    def test_resisted(self) -> None:
         """Should parse a |-resisted| message."""
         self.case([MESSAGES.index('Resisted'), 10], ["|-resisted|p2a: Pokémon #2"])
 
-    def test_immune(self):
+    def test_immune(self) -> None:
         """Should parse a |-immune| message."""
         self.case(
             [MESSAGES.index('Immune'), 11, REASONS['Immune'].index('None')],
@@ -482,7 +479,7 @@ class TestProtocolParsing(unittest.TestCase):
             ["|-immune|p2a: Pokémon #3|[ohko]"]
         )
 
-    def test_transform(self):
+    def test_transform(self) -> None:
         """Should parse a |-transform| message."""
         self.case(
             [MESSAGES.index('Transform'), 2, 13],

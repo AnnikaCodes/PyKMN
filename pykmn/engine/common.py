@@ -1,6 +1,6 @@
 """This file includes common functionality like bindings for pkmn_result."""
 from enum import Enum, IntEnum
-from typing import Tuple, Union
+from typing import Union
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 
 # This file needs some testing, but I think it makes sense to test it
@@ -46,17 +46,21 @@ class Result:
 
     Python version of pkmn_result.
 
-    Consumers of the pykmn library shouldn't need to construct this class themselves.
+    Consumers of the PyKMN library shouldn't need to construct this class themselves.
     """
 
-    def __init__(self, _pkmn_result: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace):
-        """Create a new Result object.
+    def __init__(
+        self,
+        _pkmn_result: int,
+        _libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
+    ) -> None:
+        """Create a new Result object. You shouldn't need to do this.
 
         Args:
             _pkmn_result (int): The value of the C pkmn_result type.
         """
         self._pkmn_result = _pkmn_result
-        self._libpkmn = libpkmn
+        self._libpkmn = _libpkmn
 
     def type(self) -> ResultType:
         """Get the type of result.
@@ -99,23 +103,26 @@ class Choice:
 
     Python version of pkmn_choice.
 
-    Consumers of the pykmn library should not construct this class themselves, but instead
+    Consumers of the PyKMN library should not construct this class themselves, but instead
     use the `possible_choices` method of the Battle class for the generation they are simulating.
     """
 
-    def __init__(self, _pkmn_choice: int, libpkmn: LibpkmnBinding = libpkmn_showdown_trace):
-        """
-        DON'T CALL THIS CONSTRUCTOR.
+    def __init__(
+        self,
+        _pkmn_choice: int,
+        _libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
+    ) -> None:
+        """DON'T CALL THIS CONSTRUCTOR.
 
         If you pass an invalid choice to libpkmn, it may behave unpredictably or cause errors.
 
         Use the `possible_choices` method of the Battle class to get Choice objects.
         """
         self._pkmn_choice = _pkmn_choice  # uint8_t
-        self._libpkmn = libpkmn
+        self._libpkmn = _libpkmn
 
     @staticmethod
-    def PASS():
+    def PASS() -> "Choice":
         """Create a PASS choice."""
         return Choice(0)
 
@@ -156,7 +163,7 @@ class Softlock(Exception):
     pass
 
 
-def pack_u16_as_bytes(n: int) -> Tuple[int, int]:
+def pack_u16_as_bytes(n: int) -> tuple[int, int]:
     """Pack an unsigned 16-bit integer into a pair of bytes.
 
     Args:
@@ -191,7 +198,7 @@ def pack_two_u4s(a: int, b: int) -> int:
     """
     return (a & 0x0F) | ((b & 0x0F) << 4)
 
-def unpack_two_u4s(n: int) -> Tuple[int, int]:
+def unpack_two_u4s(n: int) -> tuple[int, int]:
     """Unpack a single byte into two unsigned 4-bit integers.
 
     Args:
@@ -216,7 +223,7 @@ def pack_two_i4s(a: int, b: int) -> int:
     """
     return pack_two_u4s(a & 0x0F, b & 0x0F)
 
-def unpack_two_i4s(n: int) -> Tuple[int, int]:
+def unpack_two_i4s(n: int) -> tuple[int, int]:
     """Unpack a single byte into two signed 4-bit integers.
 
     Args:
@@ -234,8 +241,8 @@ def insert_unsigned_int_at_offset(byte: int, n: int, length: int, offset: int) -
     Args:
         byte (int): The byte to insert into.
         n (int): The unsigned integer to insert.
-        n_bits (int): The number of bits in the unsigned integer.
-        bit_offset (int): The offset at which to insert the unsigned integer.
+        length (int): The number of bits in the unsigned integer.
+        offset (int): The offset at which to insert the unsigned integer.
 
     Returns:
         int: The byte with the unsigned integer inserted.
@@ -252,7 +259,7 @@ def extract_unsigned_int_at_offset(byte: int, length: int, offset: int) -> int:
 
     Args:
         byte (int): The byte to extract from.
-        length_bits (int): The number of bits in the unsigned integer.
+        length (int): The number of bits in the unsigned integer.
         offset (int): The offset in bits at which to extract the unsigned integer.
 
     Returns:
