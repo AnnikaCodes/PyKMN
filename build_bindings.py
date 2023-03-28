@@ -12,7 +12,7 @@ import hashlib
 import os
 from pathlib import Path
 from enum import Enum
-from typing import Union
+from typing import Union, Tuple, List
 
 # from https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine#L11
 MINIMUM_ZIG_MAJOR_VERSION = 0
@@ -49,14 +49,14 @@ def log(message: str, color: Color = Color.GREEN) -> None:
 # https://github.com/pkmn/engine/blob/main/src/bin/install-pkmn-engine
 
 
-def parse_zig_version(version: str) -> tuple[int, int, int, Union[int, None]]:
+def parse_zig_version(version: str) -> Tuple[int, int, int, Union[int, None]]:
     """Parse a Zig version string.
 
     Args:
         version (str): the Zig version string
 
     Returns:
-        tuple[int, int, int, int | None]: a tuple of (major, minor, patch, dev) version information
+        Tuple[int, int, int, int | None]: a tuple of (major, minor, patch, dev) version information
             dev is None if there's no dev version in the string.
             Returns (-1, 0, 0, None) if the version string provided is 'master'.
     """
@@ -77,11 +77,11 @@ def parse_zig_version(version: str) -> tuple[int, int, int, Union[int, None]]:
     return (major, minor, patch, dev)
 
 
-def is_new_enough(version: tuple[int, int, int, Union[int, None]]) -> bool:
+def is_new_enough(version: Tuple[int, int, int, Union[int, None]]) -> bool:
     """Check if a Zig version can build libpkmn based on the constants in this file.
 
     Args:
-        version (tuple[int, int, int, int | None]): the Zig version from parse_zig_version()
+        version (Tuple[int, int, int, int | None]): the Zig version from parse_zig_version()
 
     Returns:
         bool: True if the version can build libpkmn, else False
@@ -211,7 +211,7 @@ def find_zig() -> str:
     return downloaded_zig
 
 
-def build_pkmn_engine(out_dir: str, options: list[str]) -> None:
+def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
     """Build libpkmn, populating the zig-out directory with a library file."""
     try:
         lib_dir = Path(os.path.join(out_dir, "lib"))

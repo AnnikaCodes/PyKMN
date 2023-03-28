@@ -5,20 +5,20 @@ but it's reasonably similar.
 """
 from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS, TYPES
 from pykmn.engine.common import unpack_u16_from_bytes
-from typing import Union
+from typing import Union, List, Tuple, Dict
 from collections.abc import Callable
 import re
 
 try:
     # doesn't exist in python <3.10
-    from typing import TypeAlias
+    from typing import TypeAlias # type: ignore
 except ImportError:
     pass
 
-Slots = tuple[list[str], list[str]]
+Slots = Tuple[List[str], List[str]]
 
-moveid_to_name_map: dict[int, str] = {id: name for name, id in MOVE_IDS.items()}
-speciesid_to_name_map: dict[int, str] = {id: name for name, id in SPECIES_IDS.items()}
+moveid_to_name_map: Dict[int, str] = {id: name for name, id in MOVE_IDS.items()}
+speciesid_to_name_map: Dict[int, str] = {id: name for name, id in SPECIES_IDS.items()}
 
 MOVE_REASONS = ['', '|[from] ']
 MOVE_ADDMOVE_REASON = MOVE_REASONS.index('|[from] ')
@@ -133,11 +133,11 @@ def parse_status(status: int) -> str:
         return 'psn'
     return ''
 
-ParseResult = tuple[str, int]
-Parser: "TypeAlias" = Callable[[list[int], int, Slots, list], Union[ParseResult, None]]
+ParseResult = Tuple[str, int]
+Parser: "TypeAlias" = Callable[[List[int], int, Slots, list], Union[ParseResult, None]]
 
 def _lastx_parser(kind: str) -> Parser:
-    def parser(_b: list[int], _i: int, _s: Slots, messages: list[str]) -> Union[ParseResult, None]:
+    def parser(_b: List[int], _i: int, _s: Slots, messages: List[str]) -> Union[ParseResult, None]:
         to_append = f"|[{kind.lower()}]"
         idx = len(messages) - 1
         while idx >= 0:
@@ -153,7 +153,7 @@ def _lastx_parser(kind: str) -> Parser:
         return None
     return parser
 
-def _move_parser(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _move_parser(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     source = parse_identifier(binary_protocol[i], slots)
     move = parse_move(binary_protocol[i + 1])
     target = parse_identifier(binary_protocol[i + 2], slots)
@@ -165,7 +165,7 @@ def _move_parser(binary_protocol: list[int], i: int, slots: Slots, _: list[str])
         i += 1
     return (msg, i)
 
-def _switch_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _switch_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     species = speciesid_to_name_map[binary_protocol[i + 1]]
     level = binary_protocol[i + 2]
@@ -178,7 +178,7 @@ def _switch_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[st
         (f"{current_hp}/{max_hp}{' ' + status if status else ''}" if current_hp != 0 else "0 fnt")
     ), i)
 
-def _cant_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _cant_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     reason = binary_protocol[i + 1]
     i += 2
@@ -190,19 +190,19 @@ def _cant_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]
 
     return (message, i)
 
-def _turn_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _turn_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     turn = unpack_u16_from_bytes(binary_protocol[i], binary_protocol[i + 1])
     return (f"|turn|{turn}", i + 2)
 
-def _win_handler(binary_protocol: list[int], i: int, _s: Slots, _: list[str]) -> ParseResult:
+def _win_handler(binary_protocol: List[int], i: int, _s: Slots, _: List[str]) -> ParseResult:
     winner = binary_protocol[i]
     i += 1
     return (f"|win|p{winner + 1}", i)
 
-def _tie_handler(_b: list[int], i: int, _s: Slots, _: list[str]) -> ParseResult:
+def _tie_handler(_b: List[int], i: int, _s: Slots, _: List[str]) -> ParseResult:
     return ("|tie", i)
 
-def _damage_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _damage_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     target = parse_identifier(binary_protocol[i], slots)
 
     # hp is a 16-bit uint
@@ -221,7 +221,7 @@ def _damage_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[st
         i += 1
     return (msg, i)
 
-def _heal_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _heal_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     target = parse_identifier(binary_protocol[i], slots)
 
     # hp is a 16-bit uint
@@ -243,7 +243,7 @@ def _heal_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]
 def _status_parser(name: str) -> Parser:
     is_status = name == "Status"
     reasons = STATUS_REASONS if is_status else CURESTATUS_REASONS
-    def handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+    def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
         pokemon = parse_identifier(binary_protocol[i], slots)
         status = parse_status(binary_protocol[i + 1])
         reason = binary_protocol[i + 2]
@@ -257,11 +257,11 @@ def _status_parser(name: str) -> Parser:
     return handler
 
 def _returner(msg: str) -> Parser:
-    def handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+    def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
         return (msg, i)
     return handler
 
-def _boost_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _boost_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     reason = binary_protocol[i + 1]
     boost_amount = binary_protocol[i + 2] - 6
@@ -270,31 +270,31 @@ def _boost_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str
     message = f"|-{name}|{pokemon}{BOOST_REASONS[reason]}|{abs(boost_amount)}"
     return (message, i)
 
-def _fail_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _fail_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     reason = binary_protocol[i + 1]
     i += 2
     return (f"|-fail|{pokemon}{FAIL_REASONS[reason]}", i)
 
 def _generic_message_parser(name: str) -> Parser:
-    def handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+    def handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
         pokemon = parse_identifier(binary_protocol[i], slots)
         i += 1
         return (f"|{name}|{pokemon}", i)
     return handler
 
 def _hitcount_handler(
-    binary_protocol: list[int],
+    binary_protocol: List[int],
     i: int,
     slots: Slots,
-    _: list[str]
+    _: List[str]
 ) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     hit_count = binary_protocol[i + 1]
     i += 2
     return (f"|-hitcount|{pokemon}|{hit_count}", i)
 
-def _prepare_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _prepare_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     move = parse_move(binary_protocol[i + 1])
     i += 2
@@ -302,9 +302,9 @@ def _prepare_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[s
 
 def _activate_handler(
     binary_protocol:
-    list[int], i: int,
+    List[int], i: int,
     slots: Slots,
-    _: list[str]
+    _: List[str]
 ) -> ParseResult:
     pokemon = '' \
         if binary_protocol[i + 1] == ACTIVATE_NO_POKEMON_REASON \
@@ -313,7 +313,7 @@ def _activate_handler(
         'activate'
     return (f"|-{protocol}|{pokemon}{ACTIVATE_REASONS[binary_protocol[i + 1]]}", i + 2)
 
-def _start_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _start_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     reason = binary_protocol[i + 1]
     i += 2
@@ -337,7 +337,7 @@ def _start_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str
     return (msg, i)
 
 
-def _end_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _end_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     """Handles |-end| messages."""
     pokemon = parse_identifier(binary_protocol[i], slots)
     reason = binary_protocol[i + 1]
@@ -345,7 +345,7 @@ def _end_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str])
     msg = f"|-end|{pokemon}{END_REASONS[reason]}"
     return (msg, i)
 
-def _immune_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[str]) -> ParseResult:
+def _immune_handler(binary_protocol: List[int], i: int, slots: Slots, _: List[str]) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     reason = binary_protocol[i + 1]
     i += 2
@@ -353,17 +353,17 @@ def _immune_handler(binary_protocol: list[int], i: int, slots: Slots, _: list[st
     return (msg, i)
 
 def _transform_handler(
-    binary_protocol: list[int],
+    binary_protocol: List[int],
     i: int,
     slots: Slots,
-    _: list[str]
+    _: List[str]
 ) -> ParseResult:
     pokemon = parse_identifier(binary_protocol[i], slots)
     target = parse_identifier(binary_protocol[i + 1], slots)
     i += 2
     return (f"|-transform|{pokemon}|{target}", i)
 
-HANDLERS: list[Parser] = [
+HANDLERS: List[Parser] = [
     # (just to not have a 0-index)
     None, # type: ignore
     _lastx_parser('Still'),
@@ -399,10 +399,10 @@ HANDLERS: list[Parser] = [
 ]
 
 def parse_protocol(
-    binary_protocol: list[int],
+    binary_protocol: List[int],
     # https://github.com/python/mypy/issues/5068#issuecomment-389882867
     slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2, # type: ignore
-) -> list[str]:
+) -> List[str]:
     """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
 
     Args:
@@ -412,7 +412,7 @@ def parse_protocol(
     Returns:
         List[str]: An array of PS protocol messages.
     """
-    messages: list[str] = []
+    messages: List[str] = []
     i = 0
     while i < len(binary_protocol):
         msg_type_byte = binary_protocol[i]

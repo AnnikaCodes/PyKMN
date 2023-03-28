@@ -3,6 +3,7 @@ import unittest
 from pykmn.engine.protocol import parse_protocol
 from pykmn.data.gen1 import SPECIES_IDS, MOVE_IDS, TYPES
 from pykmn.data.protocol import MESSAGES, REASONS
+from typing import List
 
 # TODO: replace hardcoded Reasons
 
@@ -10,7 +11,7 @@ from pykmn.data.protocol import MESSAGES, REASONS
 class TestProtocolParsing(unittest.TestCase):
     """Test parsing protocol to PS protocol messages."""
 
-    def case(self, protocol: list[int], expected: list[str]) -> None:
+    def case(self, protocol: List[int], expected: List[str]) -> None:
         """Assert that the protocol parses to the expected message."""
         self.assertListEqual(parse_protocol(protocol), expected)
 

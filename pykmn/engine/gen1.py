@@ -8,8 +8,8 @@ from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import cast, TypedDict, Literal, Union
-from collections.abc import Sequence
+from typing import cast, TypedDict, Literal, Union, List, Tuple
+from typing import Sequence # noqa: UP035
 from enum import IntEnum
 from collections import namedtuple
 import math
@@ -186,9 +186,9 @@ class Status:
 
 # enum-izing moves only brings us from 822 battles/sec to 816
 
-MovePP = tuple[str, int]
-FullMoveset = tuple[str, str, str, str]
-Moveset = Union[FullMoveset, tuple[str], tuple[str, str], tuple[str, str, str]]
+MovePP = Tuple[str, int]
+FullMoveset = Tuple[str, str, str, str]
+Moveset = Union[FullMoveset, Tuple[str], Tuple[str, str], Tuple[str, str, str]]
 SpeciesName = str
 
 class ExtraPokemonData(TypedDict, total=False):
@@ -197,12 +197,12 @@ class ExtraPokemonData(TypedDict, total=False):
     status: Status
     level: int
     stats: Gen1StatData
-    types: tuple[str, str]
-    move_pp: tuple[int, int, int, int]
+    types: Tuple[str, str]
+    move_pp: Tuple[int, int, int, int]
     dvs: Gen1StatData
     exp: Gen1StatData
 
-PokemonData = Union[tuple[SpeciesName, Moveset], tuple[SpeciesName, Moveset, ExtraPokemonData]]
+PokemonData = Union[Tuple[SpeciesName, Moveset], Tuple[SpeciesName, Moveset, ExtraPokemonData]]
 PokemonSlot = Union[Literal[1], Literal[2], Literal[3],Literal[4], Literal[5], Literal[6]]
 
 BoostData = TypedDict('BoostData', {
@@ -283,7 +283,7 @@ def statcalc(
 
 # Optimization: remove debug asserts
 
-Gen1RNGSeed = list[int]
+Gen1RNGSeed = List[int]
 
 class Battle:
     """A Generation I Pokémon battle."""
@@ -417,7 +417,7 @@ class Battle:
         exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535}
         if len(pokemon_data) == 3:
             species_name, move_names, extra_data = \
-                cast(tuple[SpeciesName, Moveset, ExtraPokemonData], pokemon_data)
+                cast(Tuple[SpeciesName, Moveset, ExtraPokemonData], pokemon_data)
             # possible optimization: is it faster to pass this as an array/extra parameters
             # and avoid dict lookups?
             if 'hp' in extra_data:
@@ -437,7 +437,7 @@ class Battle:
             if 'exp' in extra_data:
                 exp = extra_data['exp']
         else:
-            species_name, move_names = cast(tuple[SpeciesName, Moveset], pokemon_data)
+            species_name, move_names = cast(Tuple[SpeciesName, Moveset], pokemon_data)
 
         if species_name == 'None':
             if stats is None:
@@ -593,7 +593,7 @@ class Battle:
             LAYOUT_OFFSETS['ActivePokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def active_pokemon_types(self, player: Player) -> Union[tuple[str, str], tuple[str]]:
+    def active_pokemon_types(self, player: Player) -> Union[Tuple[str, str], Tuple[str]]:
         """Get the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -805,7 +805,7 @@ class Battle:
     def set_active_pokemon_types(
         self,
         player: Player,
-        new_types: Union[tuple[str, str], tuple[str]]
+        new_types: Union[Tuple[str, str], Tuple[str]]
     ) -> None:
         """Set the types of the active Pokémon of a player."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -817,7 +817,7 @@ class Battle:
             TYPES.index(new_types[1 if len(new_types) == 2 else 0]),
         )
 
-    def transformed_into(self, player: Player) -> tuple[Player, PokemonSlot]:
+    def transformed_into(self, player: Player) -> Tuple[Player, PokemonSlot]:
         """Get the player and slot of the Pokémon that the active Pokémon transformed into."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -838,7 +838,7 @@ class Battle:
     def set_transformed_into(
         self,
         player: Player,
-        new_transformed_into: tuple[Player, PokemonSlot]
+        new_transformed_into: Tuple[Player, PokemonSlot]
     ) -> None:
         """Set the player and slot that the active Pokémon transformed into."""
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1058,7 +1058,7 @@ class Battle:
         self,
         player: Player,
         pokemon: Union[PokemonSlot, Literal["Active"]]
-    ) -> tuple[int, ...]:
+    ) -> Tuple[int, ...]:
         """Get the PP left of a Pokémon's moves."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1081,7 +1081,7 @@ class Battle:
         self,
         player: Player,
         pokemon: Union[PokemonSlot, Literal["Active"]]
-    ) -> tuple[MovePP, ...]:
+    ) -> Tuple[MovePP, ...]:
         """Get the moves of a Pokémon with their PP."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1105,7 +1105,7 @@ class Battle:
         self,
         player: Player,
         pokemon: Union[PokemonSlot, Literal["Active"]],
-        new_moves: tuple[MovePP, MovePP, MovePP, MovePP]
+        new_moves: Tuple[MovePP, MovePP, MovePP, MovePP]
     ) -> None:
         """Set the moves of a Pokémon."""
         if not isinstance(pokemon, int):
@@ -1160,7 +1160,7 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def types(self, player: Player, pokemon: PokemonSlot) -> Union[tuple[str, str], tuple[str]]:
+    def types(self, player: Player, pokemon: PokemonSlot) -> Union[Tuple[str, str], Tuple[str]]:
         """Get the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -1170,7 +1170,7 @@ class Battle:
         (type1, type2) = unpack_two_u4s(self._pkmn_battle.bytes[offset])
         return (TYPES[type1], TYPES[type2]) if type2 != type1 else (TYPES[type1],)
 
-    def set_types(self, player: Player, pokemon: PokemonSlot, new_types: tuple[str, str]) -> None:
+    def set_types(self, player: Player, pokemon: PokemonSlot, new_types: Tuple[str, str]) -> None:
         """Set the types of a Pokémon."""
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -1200,7 +1200,7 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['level']
         self._pkmn_battle.bytes[offset] = new_level
 
-    def update(self, p1_choice: Choice, p2_choice: Choice) -> tuple[Result, list[int]]:
+    def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
 
         Args:
@@ -1213,7 +1213,7 @@ class Battle:
         """
         return self.update_raw(p1_choice._pkmn_choice, p2_choice._pkmn_choice)
 
-    def update_raw(self, p1_choice: int, p2_choice: int) -> tuple[Result, list[int]]:
+    def update_raw(self, p1_choice: int, p2_choice: int) -> Tuple[Result, List[int]]:
         """Update the battle with the given choice.
 
         This method accepts raw integers for choices instead of Choice objects.
@@ -1253,7 +1253,7 @@ class Battle:
         self,
         player: Player,
         previous_turn_result: Result,
-    ) -> list[Choice]:
+    ) -> List[Choice]:
         """Get the possible choices for the given player.
 
         Args:
@@ -1271,7 +1271,7 @@ class Battle:
         if num_choices == 0:
             raise Softlock("Zero choices are available.")
 
-        choices: list[Choice] = []
+        choices: List[Choice] = []
         for i in range(num_choices):
             choices.append(Choice(self._choice_buf[i], _libpkmn=self._libpkmn))
         return choices
@@ -1280,7 +1280,7 @@ class Battle:
         self,
         player: Player,
         previous_turn_result: Result,
-    ) -> list[int]:
+    ) -> List[int]:
         """Get the possible choices for the given player.
 
         This method returns raw integers instead of Choice objects.

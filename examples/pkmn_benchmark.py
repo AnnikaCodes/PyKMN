@@ -6,7 +6,7 @@ See: https://github.com/pkmn/engine/blob/main/src/test/benchmark/
 import sys
 import time
 import random
-from typing import cast, TypeVar
+from typing import cast, TypeVar, List
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.common import ResultType, Player
 from pykmn.engine.gen1 import Battle, PokemonData, Moveset
@@ -15,7 +15,7 @@ from pykmn.engine.libpkmn import libpkmn_no_trace, libpkmn_trace, libpkmn_showdo
     libpkmn_showdown_no_trace, LibpkmnBinding
 
 # https://github.com/pkmn/engine/blob/main/src/test/blocklist.json
-MOVES_BANISHED_TO_THE_SHADOW_REALM: list[str] = [
+MOVES_BANISHED_TO_THE_SHADOW_REALM: List[str] = [
     "Bind",
     "Wrap",
     "Counter",
@@ -29,9 +29,9 @@ MOVES_BANISHED_TO_THE_SHADOW_REALM: list[str] = [
     "Transform",
 ]
 
-species_list: list[str] = list(SPECIES_IDS)
+species_list: List[str] = list(SPECIES_IDS)
 assert len(species_list) == 151 + 1
-moves_list: list[str] = list(MOVES)
+moves_list: List[str] = list(MOVES)
 assert len(moves_list) == 165
 
 def new_seed(prng: ShowdownRNG) -> int:
@@ -50,14 +50,14 @@ def new_seed(prng: ShowdownRNG) -> int:
         prng.in_range(0, 0x10000)
     )
 
-def generate_team(prng: ShowdownRNG) -> list[PokemonData]:
+def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
     """Generates a random team of Pokémon, like the @pkmn/engine benchmark.
 
     Args:
         prng (ShowdownRNG): The RNG to use.
 
     Returns:
-        list[PokemonData]: A list of Pokémon data.
+        List[PokemonData]: A list of Pokémon data.
     """
     team = []
     n = 6
@@ -87,7 +87,7 @@ def generate_team(prng: ShowdownRNG) -> list[PokemonData]:
         num_moves = 4
         if prng.random_chance(1, 100):
             num_moves = prng.in_range(1, 3 + 1)
-        moves: list[str] = []
+        moves: List[str] = []
         # print(f"before moveloop: {u64_to_4_u16s(prng.seed())}")
         while len(moves) < num_moves:
             move = list(MOVES)[prng.in_range(1, 164 + 1) - 1] # 164 to exclude Struggle
@@ -106,12 +106,12 @@ def generate_team(prng: ShowdownRNG) -> list[PokemonData]:
     return team
 
 T = TypeVar('T')
-def random_pick(prng: ShowdownRNG, choices: list[T]) -> T:
+def random_pick(prng: ShowdownRNG, choices: List[T]) -> T:
     """Picks a random element from a list with a ShowdownRNG.
 
     Args:
         prng (ShowdownRNG): The RNG to use.
-        choices (list[T]): The list to pick from.
+        choices (List[T]): The list to pick from.
 
     Returns:
         T: The randomly chosen element.

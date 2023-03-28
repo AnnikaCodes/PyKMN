@@ -1,7 +1,7 @@
 """Loads data from JSON."""
 import json
 import os
-from typing import TypedDict
+from typing import TypedDict, List, Dict
 
 our_directory = os.path.dirname(__file__)
 
@@ -26,7 +26,7 @@ PartialGen1StatData = TypedDict(
 class Gen1SpeciesData(TypedDict):
     """Data about Pokémon species in Generation I."""
     stats: Gen1StatData
-    types: list[str]
+    types: List[str]
 
 Gen2StatData = TypedDict(
     'Gen2StatData',
@@ -35,7 +35,7 @@ Gen2StatData = TypedDict(
 class Gen2SpeciesData(TypedDict):
     """Data about Pokémon species in Generation II."""
     stats: Gen2StatData
-    types: list[str]
+    types: List[str]
     gender: int
 
 class SizeData(TypedDict):
@@ -137,74 +137,74 @@ class OffsetData(TypedDict):
     Volatiles: VolatilesOffsets
 
 """A list of Pokémon type names."""
-GEN1_TYPES: list[str] = data_json[0]["types"]
+GEN1_TYPES: List[str] = data_json[0]["types"]
 
 """
 A dictionary of Pokémon species data.
 
 Species names are keys.
 """
-GEN1_SPECIES: dict[str, Gen1SpeciesData] = data_json[0]["species"]
+GEN1_SPECIES: Dict[str, Gen1SpeciesData] = data_json[0]["species"]
 
 """
 A dictionary of Pokémon species data.
 
 Species names are keys, and values are libpkmn species IDs.
 """
-GEN1_SPECIES_IDS: dict[str, int] = {'None': 0}
+GEN1_SPECIES_IDS: Dict[str, int] = {'None': 0}
 for (index, species_name) in enumerate(list(GEN1_SPECIES.keys())):
     GEN1_SPECIES_IDS[species_name] = index + 1
 
-GEN1_SPECIES_ID_LOOKUP: dict[int, str] = {v: k for k, v in GEN1_SPECIES_IDS.items()}
+GEN1_SPECIES_ID_LOOKUP: Dict[int, str] = {v: k for k, v in GEN1_SPECIES_IDS.items()}
 
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are PP.
 """
-GEN1_MOVES: dict[str, int] = data_json[0]["moves"]
+GEN1_MOVES: Dict[str, int] = data_json[0]["moves"]
 
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are libpkmn move IDs.
 """
-GEN1_MOVE_IDS: dict[str, int] = {'None': 0}
+GEN1_MOVE_IDS: Dict[str, int] = {'None': 0}
 for (index, move_name) in enumerate(list(GEN1_MOVES.keys())):
     GEN1_MOVE_IDS[move_name] = index + 1
 
-GEN1_MOVE_ID_LOOKUP: dict[int, str] = {v: k for k, v in GEN1_MOVE_IDS.items()}
+GEN1_MOVE_ID_LOOKUP: Dict[int, str] = {v: k for k, v in GEN1_MOVE_IDS.items()}
 
 
 """A list of Pokémon type names."""
-GEN2_TYPES: list[str] = data_json[1]["types"]
+GEN2_TYPES: List[str] = data_json[1]["types"]
 
 """
 A dictionary of Pokémon species data.
 
 Species names are keys.
 """
-GEN2_SPECIES: dict[str, Gen2SpeciesData] = data_json[1]["species"]
+GEN2_SPECIES: Dict[str, Gen2SpeciesData] = data_json[1]["species"]
 
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are PP.
 """
-GEN2_MOVES: dict[str, int] = data_json[1]["moves"]
+GEN2_MOVES: Dict[str, int] = data_json[1]["moves"]
 
 """A list of Pokémon item names."""
-GEN2_ITEMS: list[str] = data_json[1]["items"]
+GEN2_ITEMS: List[str] = data_json[1]["items"]
 
 """A list of protocol message names. Indices are what the binary protocol uses."""""
-PROTOCOL_MESSAGES: list[str] = protocol_json["ArgType"]
+PROTOCOL_MESSAGES: List[str] = protocol_json["ArgType"]
 
 del protocol_json["ArgType"]
 """
 A dictionary whose keys are protocol message names,
 and values are lists of possible values for Reason.
 """
-PROTOCOL_REASONS: dict[str, list[str]] = protocol_json
+PROTOCOL_REASONS: Dict[str, List[str]] = protocol_json
 
 GEN1_LAYOUT_SIZES: SizeData = layout_json[0]["sizes"]
 GEN1_LAYOUT_OFFSETS: OffsetData = layout_json[0]["offsets"]

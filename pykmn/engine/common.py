@@ -1,6 +1,6 @@
 """This file includes common functionality like bindings for pkmn_result."""
 from enum import Enum, IntEnum
-from typing import Union
+from typing import Union, Tuple
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 
 # This file needs some testing, but I think it makes sense to test it
@@ -163,7 +163,7 @@ class Softlock(Exception):
     pass
 
 
-def pack_u16_as_bytes(n: int) -> tuple[int, int]:
+def pack_u16_as_bytes(n: int) -> Tuple[int, int]:
     """Pack an unsigned 16-bit integer into a pair of bytes.
 
     Args:
@@ -198,7 +198,7 @@ def pack_two_u4s(a: int, b: int) -> int:
     """
     return (a & 0x0F) | ((b & 0x0F) << 4)
 
-def unpack_two_u4s(n: int) -> tuple[int, int]:
+def unpack_two_u4s(n: int) -> Tuple[int, int]:
     """Unpack a single byte into two unsigned 4-bit integers.
 
     Args:
@@ -223,7 +223,7 @@ def pack_two_i4s(a: int, b: int) -> int:
     """
     return pack_two_u4s(a & 0x0F, b & 0x0F)
 
-def unpack_two_i4s(n: int) -> tuple[int, int]:
+def unpack_two_i4s(n: int) -> Tuple[int, int]:
     """Unpack a single byte into two signed 4-bit integers.
 
     Args:
