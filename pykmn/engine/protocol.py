@@ -2,20 +2,18 @@
 
 This is not necessarily 100% identical to what Pokémon Showdown would produce,
 but it's reasonably similar.
+
+`parse_protocol` is the main function you'll want to use; you can feed the protocol trace from
+`pykmn.engine.gen1.Battle.update` into it.
+
+There are also functions to parse individual components of protocol, but most use cases shouldn't
+need them.
 """
 from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS, TYPES
-from pykmn.engine.common import unpack_u16_from_bytes
+from pykmn.engine.common import unpack_u16_from_bytes, Slots
 from typing import Union, List, Tuple, Dict
 from collections.abc import Callable
 import re
-
-try:
-    # doesn't exist in python <3.10
-    from typing import TypeAlias # type: ignore
-except ImportError:
-    pass
-
-Slots = Tuple[List[str], List[str]]
 
 moveid_to_name_map: Dict[int, str] = {id: name for name, id in MOVE_IDS.items()}
 speciesid_to_name_map: Dict[int, str] = {id: name for name, id in SPECIES_IDS.items()}
@@ -77,15 +75,44 @@ END_REASONS = [
 ]
 IMMUNE_REASONS = ['', '|[ohko]']
 
+def parse_protocol(
+    binary_protocol: List[int],
+    # https://github.com/python/mypy/issues/5068#issuecomment-389882867
+    slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2, # type: ignore
+) -> List[str]:
+    """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
+
+    Args:
+        binary_protocol (`List[int]`): An array of byte-length integers of libpkmn protocol.
+        slots (`Slots`): A list of Pokémon names in each slot for sides 1 and 2
+
+    Returns:
+        **`List[str]`**: An array of PS protocol messages.
+    """
+    messages: List[str] = []
+    i = 0
+    while i < len(binary_protocol):
+        msg_type_byte = binary_protocol[i]
+        i += 1
+        if msg_type_byte == 0:
+            return messages
+        handler = HANDLERS[msg_type_byte]
+        res = handler(binary_protocol, i, slots, messages)
+        if res is not None:
+            (msg, i) = res
+            messages.append(msg)
+    return messages
+
+
 def parse_identifier(ident: int, slots: Slots) -> str:
     """Parse a Pokémon identifier.
 
     Args:
-        ident (int): the PokemonIdent byte
-        slots (Slots): descriptions of Pokémon names
+        ident (`int`): the PokemonIdent byte
+        slots (`Slots`): descriptions of Pokémon names
 
     Returns:
-        str: the identifier
+        **`str`**: the identifier
     """
     position = 'b' if ((ident >> 4) & 1) == 1 else 'a'
     # 5th most significant bit is the player number
@@ -100,10 +127,10 @@ def parse_move(moveid: int) -> str:
     """Parse a move identifier.
 
     Args:
-        moveid (int): the MoveIdent byte
+        moveid (`int`): the MoveIdent byte
 
     Returns:
-        str: the identifier
+        **`str`**: the identifier
     """
     return moveid_to_name_map[moveid]
 
@@ -112,10 +139,10 @@ def parse_status(status: int) -> str:
     """Parse a status identifier.
 
     Args:
-        status (int): the StatusIdent byte
+        status (`int`): the StatusIdent byte
 
     Returns:
-        str: the identifier
+        **`str`**: the identifier
     """
     # code is from @pkmn/engine
     # https://github.com/pkmn/engine/blob/main/src/pkg/protocol.ts#L463-L471
@@ -134,7 +161,7 @@ def parse_status(status: int) -> str:
     return ''
 
 ParseResult = Tuple[str, int]
-Parser: "TypeAlias" = Callable[[List[int], int, Slots, list], Union[ParseResult, None]]
+Parser = Callable[[List[int], int, Slots, list], Union[ParseResult, None]]
 
 def _lastx_parser(kind: str) -> Parser:
     def parser(_b: List[int], _i: int, _s: Slots, messages: List[str]) -> Union[ParseResult, None]:
@@ -398,30 +425,3 @@ HANDLERS: List[Parser] = [
     _transform_handler,
 ]
 
-def parse_protocol(
-    binary_protocol: List[int],
-    # https://github.com/python/mypy/issues/5068#issuecomment-389882867
-    slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2, # type: ignore
-) -> List[str]:
-    """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
-
-    Args:
-        binary_protocol (List[int]): An array of byte-length integers of libpkmn protocol.
-        slots (Slots): A list of Pokémon names in each slot for sides 1 and 2
-
-    Returns:
-        List[str]: An array of PS protocol messages.
-    """
-    messages: List[str] = []
-    i = 0
-    while i < len(binary_protocol):
-        msg_type_byte = binary_protocol[i]
-        i += 1
-        if msg_type_byte == 0:
-            return messages
-        handler = HANDLERS[msg_type_byte]
-        res = handler(binary_protocol, i, slots, messages)
-        if res is not None:
-            (msg, i) = res
-            messages.append(msg)
-    return messages

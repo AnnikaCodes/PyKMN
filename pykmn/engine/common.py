@@ -1,11 +1,13 @@
 """This file includes common functionality like bindings for pkmn_result."""
 from enum import Enum, IntEnum
-from typing import Union, Tuple
+from typing import Union, Tuple, NewType, List
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 
 # This file needs some testing, but I think it makes sense to test it
 # along with the battle simulation tests.
 
+
+Slots = NewType('Slots', Tuple[List[str], List[str]])
 
 class ChoiceType(Enum):
     """An enum representing the types of choice players can make in a Pokémon battle.
@@ -57,7 +59,7 @@ class Result:
         """Create a new Result object. You shouldn't need to do this.
 
         Args:
-            _pkmn_result (int): The value of the C pkmn_result type.
+            _pkmn_result (`int`): The value of the C pkmn_result type.
         """
         self._pkmn_result = _pkmn_result
         self._libpkmn = _libpkmn
@@ -137,7 +139,7 @@ class Choice:
         """Get the data associated with the choice.
 
         Returns:
-            int | None: slot number for a switch or move index for a move
+            **`int | None`**: slot number for a switch or move index for a move
         """
         if self.type() == ChoiceType.PASS:
             return None
@@ -167,10 +169,10 @@ def pack_u16_as_bytes(n: int) -> Tuple[int, int]:
     """Pack an unsigned 16-bit integer into a pair of bytes.
 
     Args:
-        n (int): The unsigned 16-bit integer to pack.
+        n (`int`): The unsigned 16-bit integer to pack.
 
     Returns:
-        Tuple[int, int]: The pair of bytes.
+        **`Tuple[int, int]`**: The pair of bytes.
     """
     return (n & 0xFF, (n >> 8))
 
@@ -178,11 +180,11 @@ def unpack_u16_from_bytes(a: int, b: int) -> int:
     """Unpack a pair of bytes into an unsigned 16-bit integer.
 
     Args:
-        a (int): The first byte.
-        b (int): The second byte.
+        a (`int`): The first byte.
+        b (`int`): The second byte.
 
     Returns:
-        int: The unsigned 16-bit integer.
+        **`int`**: The unsigned 16-bit integer.
     """
     return (b << 8) | a
 
@@ -190,11 +192,11 @@ def pack_two_u4s(a: int, b: int) -> int:
     """Pack two unsigned 4-bit integers into a single byte.
 
     Args:
-        a (int): The first unsigned 4-bit integer to pack.
-        b (int): The second unsigned 4-bit integer to pack.
+        a (`int`): The first unsigned 4-bit integer to pack.
+        b (`int`): The second unsigned 4-bit integer to pack.
 
     Returns:
-        int: The single byte.
+        **`int`**: The single byte.
     """
     return (a & 0x0F) | ((b & 0x0F) << 4)
 
@@ -202,10 +204,10 @@ def unpack_two_u4s(n: int) -> Tuple[int, int]:
     """Unpack a single byte into two unsigned 4-bit integers.
 
     Args:
-        n (int): The single byte.
+        n (`int`): The single byte.
 
     Returns:
-        Tuple[int, int]: The two unsigned 4-bit integers.
+        **`Tuple[int, int]`**: The two unsigned 4-bit integers.
     """
     return (n & 0x0F, (n >> 4) & 0x0F)
 
@@ -215,11 +217,11 @@ def pack_two_i4s(a: int, b: int) -> int:
     """Pack two signed 4-bit integers into a single byte.
 
     Args:
-        a (int): The first signed 4-bit integer to pack.
-        b (int): The second signed 4-bit integer to pack.
+        a (`int`): The first signed 4-bit integer to pack.
+        b (`int`): The second signed 4-bit integer to pack.
 
     Returns:
-        int: The single byte.
+        **`int`**: The single byte.
     """
     return pack_two_u4s(a & 0x0F, b & 0x0F)
 
@@ -227,10 +229,10 @@ def unpack_two_i4s(n: int) -> Tuple[int, int]:
     """Unpack a single byte into two signed 4-bit integers.
 
     Args:
-        n (int): The single byte.
+        n (`int`): The single byte.
 
     Returns:
-        Tuple[int, int]: The two signed 4-bit integers.
+        **`Tuple[int, int]`**: The two signed 4-bit integers.
     """
     a, b = unpack_two_u4s(n)
     return (a if a < 8 else a - 16, b if b < 8 else b - 16)
@@ -239,13 +241,13 @@ def insert_unsigned_int_at_offset(byte: int, n: int, length: int, offset: int) -
     """Insert an unsigned integer into a byte.
 
     Args:
-        byte (int): The byte to insert into.
-        n (int): The unsigned integer to insert.
-        length (int): The number of bits in the unsigned integer.
-        offset (int): The offset at which to insert the unsigned integer.
+        byte (`int`): The byte to insert into.
+        n (`int`): The unsigned integer to insert.
+        length (`int`): The number of bits in the unsigned integer.
+        offset (`int`): The offset at which to insert the unsigned integer.
 
     Returns:
-        int: The byte with the unsigned integer inserted.
+        **`int`**: The byte with the unsigned integer inserted.
     """
     # zero the n bits at the offset
     mask = (1 << length) - 1
@@ -258,11 +260,11 @@ def extract_unsigned_int_at_offset(byte: int, length: int, offset: int) -> int:
     """Extract an unsigned integer from a byte.
 
     Args:
-        byte (int): The byte to extract from.
-        length (int): The number of bits in the unsigned integer.
-        offset (int): The offset in bits at which to extract the unsigned integer.
+        byte (`int`): The byte to extract from.
+        length (`int`): The number of bits in the unsigned integer.
+        offset (`int`): The offset in bits at which to extract the unsigned integer.
 
     Returns:
-        int: The unsigned integer extracted from the byte.
+        **`int`**: The unsigned integer extracted from the byte.
     """
     return (byte >> offset) & ((1 << length) - 1)

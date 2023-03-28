@@ -30,7 +30,7 @@ class Status:
         this constructor takes a raw value from libpkmn.
 
         Args:
-            raw_status (int): The raw status value from libpkmn.
+            raw_status (`int`): The raw status value from libpkmn.
         """
         self._value = raw_status
 
@@ -38,7 +38,7 @@ class Status:
         """Returns whether the Pokémon is asleep.
 
         Returns:
-            bool: _description_
+            **`bool`**: _description_
         """
         return self.sleep_duration() != 0
 
@@ -48,7 +48,7 @@ class Status:
         Returns 0 if the Pokémon isn't asleep.
 
         Returns:
-            int: _description_
+            **`int`**: _description_
         """
         return self._value & 0b111
 
@@ -56,7 +56,7 @@ class Status:
         """Returns whether the Pokémon is healthy.
 
         Returns:
-            bool: _description_
+            **`bool`**: _description_
         """
         return self._value == 0
 
@@ -64,7 +64,7 @@ class Status:
         """Returns whether the Pokémon is burned.
 
         Returns:
-            bool: _description_
+            **`bool`**: _description_
         """
         return ((self._value >> Status._BRN) & 1) != 0
 
@@ -72,7 +72,7 @@ class Status:
         """Returns whether the Pokémon is frozen.
 
         Returns:
-            bool: _description_
+            **`bool`**: _description_
         """
         return ((self._value >> Status._FRZ) & 1) != 0
 
@@ -80,7 +80,7 @@ class Status:
         """Returns whether the Pokémon is paralyzed.
 
         Returns:
-            bool: _description_
+            **`bool`**: _description_
         """
         return ((self._value >> Status._PAR) & 1) != 0
 
@@ -88,7 +88,7 @@ class Status:
         """Returns whether the Pokémon is poisoned.
 
         Returns:
-            bool: _description_
+            **`bool`**: _description_
         """
         return ((self._value >> Status._PSN) & 1) != 0
 
@@ -97,10 +97,10 @@ class Status:
         """Returns the raw status value for a sleeping Pokémon.
 
         Args:
-            duration (int): The duration of the sleep.
+            duration (`int`): The duration of the sleep.
 
         Returns:
-            Status: The Status
+            **`Status`**: The Status
         """
         return Status(duration)
 
@@ -109,7 +109,7 @@ class Status:
         """Returns the raw status value for a healthy Pokémon.
 
         Returns:
-            Status: _description_
+            **`Status`**: _description_
         """
         return Status(0)
 
@@ -118,7 +118,7 @@ class Status:
         """Returns the raw status value for a poisoned Pokémon.
 
         Returns:
-            Status: _description_
+            **`Status`**: _description_
         """
         return Status(1 << Status._PSN)
 
@@ -127,7 +127,7 @@ class Status:
         """Returns the raw status value for a burned Pokémon.
 
         Returns:
-            Status: _description_
+            **`Status`**: _description_
         """
         return Status(1 << Status._BRN)
 
@@ -136,7 +136,7 @@ class Status:
         """Returns the raw status value for a frozen Pokémon.
 
         Returns:
-            Status: _description_
+            **`Status`**: _description_
         """
         return Status(1 << Status._FRZ)
 
@@ -145,7 +145,7 @@ class Status:
         """Returns the raw status value for a paralyzed Pokémon.
 
         Returns:
-            Status: _description_
+            **`Status`**: _description_
         """
         return Status(1 << Status._PAR)
 
@@ -154,10 +154,10 @@ class Status:
         """Returns the raw status value for a self-inflicted sleep.
 
         Args:
-            duration (int): The duration of the sleep.
+            duration (`int`): The duration of the sleep.
 
         Returns:
-            Status: _description_
+            **`Status`**: _description_
         """
         return Status(0x80 | duration)
 
@@ -165,7 +165,7 @@ class Status:
         """Returns a human-readable representation of the status.
 
         Returns:
-            str: A human-readable representation of the status.
+            **`str`**: A human-readable representation of the status.
         """
         if self.burned():
             return "Status(burned)"
@@ -255,14 +255,14 @@ def statcalc(
     """Calculate a Pokémon's stats based on its level, base stats, and so forth.
 
     Args:
-        base_value (int): The base value of the stat for this species.
-        is_HP (bool, optional): Whether the stat is HP or not. Defaults to False.
-        level (int): The level of the Pokémon.
-        dv (int): The Pokémon's DV for this stat.
-        experience (int): The Pokémon's stat experience for this stat.
+        base_value (`int`): The base value of the stat for this species.
+        is_HP (`bool`, optional): Whether the stat is HP or not. Defaults to False.
+        level (`int`): The level of the Pokémon.
+        dv (`int`): The Pokémon's DV for this stat.
+        experience (`int`): The Pokémon's stat experience for this stat.
 
     Returns:
-        int: The value of the stat
+        **`int`**: The value of the stat
     """
     evs = min(255, math.ceil(math.sqrt(experience)))
     core = (2 * (base_value + dv)) + (evs // 4)
@@ -306,23 +306,26 @@ class Battle:
         """Initialize a new battle.
 
         Args:
-            p1_team (List[PokemonData]): Player 1's team.
-            p2_team (List[PokemonData]): Player 2's team.
-            p1_last_selected_move (str, optional): Player 1's last selected move. Defaults to None.
-            p1_last_used_move (str, optional): Player 1's last used move. Defaults to None.
-            p2_last_selected_move (str, optional): Player 2's last selected move. Defaults to None.
-            p2_last_used_move (str, optional): Player 2's last used move. Defaults to None.
-            start_turn (int, optional): The turn the battle starts on. Defaults to 0.
-            last_damage (int, optional): The last damage dealt in the battle. Defaults to 0.
-            p1_move_idx (int, optional): The last move index selected by Player 1. Defaults to 0.
-            p2_move_idx (int, optional): The last move index selected by Player 2. Defaults to 0.
-            rng_seed (int, optional): The seed to initialize the battle's RNG with.
+            p1_team (`List[PokemonData]`): Player 1's team.
+            p2_team (`List[PokemonData]`): Player 2's team.
+            p1_last_selected_move (`str`, optional):
+              Player 1's last selected move. Defaults to None.
+            p1_last_used_move (`str`, optional):
+              Player 1's last used move. Defaults to None.
+            p2_last_selected_move (`str`, optional):
+              Player 2's last selected move. Defaults to None.
+            p2_last_used_move (`str`, optional): Player 2's last used move. Defaults to None.
+            start_turn (`int`, optional): The turn the battle starts on. Defaults to 0.
+            last_damage (`int`, optional): The last damage dealt in the battle. Defaults to 0.
+            p1_move_idx (`int`, optional): The last move index selected by Player 1. Defaults to 0.
+            p2_move_idx (`int`, optional): The last move index selected by Player 2. Defaults to 0.
+            rng_seed (`int`, optional): The seed to initialize the battle's RNG with.
                 Defaults to a random seed.
                 If a non-Showdown-compatible libpkmn is provided,
                 you must provide a list of 10 integers instead.
                 If you provide a list of integers and a Showdown-compatible libpkmn,
                 or don't specify a libpkmn, an exception will be raised.
-            libpkmn (LibpkmnBinding, optional): Defaults to libpkmn_showdown_trace.
+            libpkmn (`LibpkmnBinding`, optional): Defaults to libpkmn_showdown_trace.
         """
         # optimization: is it faster to not put this on the Battle class?
         self._libpkmn = libpkmn
@@ -1204,11 +1207,11 @@ class Battle:
         """Update the battle with the given choice.
 
         Args:
-            p1_choice (Choice): The choice to make for player 1.
-            p2_choice (Choice): The choice to make for player 2.
+            p1_choice (`Choice`): The choice to make for player 1.
+            p2_choice (`Choice`): The choice to make for player 2.
 
         Returns:
-            Tuple[Result, List[int]]: The result of the choice,
+            **`Tuple[Result, List[int]]`**: The result of the choice,
             and the trace as a list of protocol bytes
         """
         return self.update_raw(p1_choice._pkmn_choice, p2_choice._pkmn_choice)
@@ -1220,11 +1223,11 @@ class Battle:
         If you don't get these from possible_choices() with raw=True, things may go wrong.
 
         Args:
-            p1_choice (int): The choice to make for player 1.
-            p2_choice (int): The choice to make for player 2.
+            p1_choice (`int`): The choice to make for player 1.
+            p2_choice (`int`): The choice to make for player 2.
 
         Returns:
-            Tuple[Result, List[int]]: The result of the choice,
+            **`Tuple[Result, List[int]]`**: The result of the choice,
             and the trace as a list of protocol bytes
         """
         _pkmn_result = self._libpkmn.lib.pkmn_gen1_battle_update(
@@ -1257,12 +1260,12 @@ class Battle:
         """Get the possible choices for the given player.
 
         Args:
-            player (Player): The player to get choices for.
-            previous_turn_result (Result): The result of the previous turn
+            player (`Player`): The player to get choices for.
+            previous_turn_result (`Result`): The result of the previous turn
                 (the first turn should be two PASS choices).
 
         Returns:
-            List[Choice]: The possible choices.
+            **`List[Choice]`**: The possible choices.
         """
         # optimization: it might be faster actually to cache _pkmn_result in the battle??
         # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
@@ -1294,12 +1297,12 @@ class Battle:
         possible_choices_raw() does not (for speed).
 
         Args:
-            player (Player): The player to get choices for.
-            previous_turn_result (Result): The result of the previous turn
+            player (`Player`): The player to get choices for.
+            previous_turn_result (`Result`): The result of the previous turn
                 (the first turn should be two PASS choices).
 
         Returns:
-            List[int]: The possible choices.
+            **`List[int]`**: The possible choices.
         """
         num_choices = self._fill_choice_buffer(player, previous_turn_result)
         return self._choice_buf[0:num_choices]
@@ -1310,14 +1313,14 @@ class Battle:
         Probably don't call this.
 
         Args:
-            player (Player): _description_
-            previous_turn_result (Result): _description_
+            player (`Player`): _description_
+            previous_turn_result (`Result`): _description_
 
         Raises:
             Softlock: _description_
 
         Returns:
-            int: The number of choices
+            **`int`**: The number of choices
         """
         last_result = previous_turn_result._pkmn_result
         requested_kind = self._libpkmn.lib.pkmn_result_p1(last_result) if player == Player.P1 \

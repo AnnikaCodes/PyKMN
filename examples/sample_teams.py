@@ -1,6 +1,6 @@
 """Test script."""
 from pykmn.engine.gen1 import Battle, Player, Choice
-from pykmn.engine.common import ResultType
+from pykmn.engine.common import ResultType, Slots
 from pykmn.engine.protocol import parse_protocol
 import random
 
@@ -29,13 +29,13 @@ def run_battle(log: bool = True) -> None:
     """Runs a Pokémon battle.
 
     Args:
-        log (bool, optional): Whether to log protocol traces. Defaults to True.
+        log (`bool`, optional): Whether to log protocol traces. Defaults to True.
     """
     battle = Battle(
         p1_team=team1,
         p2_team=team2,
     )
-    slots = ([p[0] for p in team1], [p[0] for p in team2])
+    slots: Slots = Slots(([p[0] for p in team1], [p[0] for p in team2]))
 
     (result, trace) = battle.update(Choice.PASS(), Choice.PASS())
     if log:

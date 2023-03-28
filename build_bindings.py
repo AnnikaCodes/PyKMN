@@ -37,8 +37,8 @@ def log(message: str, color: Color = Color.GREEN) -> None:
     """Log a message to the console with progressing arrows and color.
 
     Args:
-        message (str): the message to log
-        color (Color, optional): the terminal color string to print with it. Defaults to GREEN.
+        message (`str`): the message to log
+        color (`Color`, optional): the terminal color string to print with it. Defaults to GREEN.
     """
     global indent
     print(f"{color.value}{'=' * indent}> {message}\033[0m")
@@ -53,12 +53,12 @@ def parse_zig_version(version: str) -> Tuple[int, int, int, Union[int, None]]:
     """Parse a Zig version string.
 
     Args:
-        version (str): the Zig version string
+        version (`str`): the Zig version string
 
     Returns:
-        Tuple[int, int, int, int | None]: a tuple of (major, minor, patch, dev) version information
+        **`Tuple[int, int, int, int | None]`**: (major, minor, patch, dev) version information
             dev is None if there's no dev version in the string.
-            Returns (-1, 0, 0, None) if the version string provided is 'master'.
+            Returns `(-1, 0, 0, None)` if the version string provided is 'master'.
     """
     if version == 'master':
         return (-1, 0, 0, None)
@@ -84,7 +84,7 @@ def is_new_enough(version: Tuple[int, int, int, Union[int, None]]) -> bool:
         version (Tuple[int, int, int, int | None]): the Zig version from parse_zig_version()
 
     Returns:
-        bool: True if the version can build libpkmn, else False
+        **`bool`**: True if the version can build libpkmn, else False
     """
     [major, minor, patch, dev] = version
     return major >= MINIMUM_ZIG_MAJOR_VERSION and minor >= MINIMUM_ZIG_MINOR_VERSION and \
@@ -95,8 +95,8 @@ def extract_zig(tarball_name: str, output_dir: str) -> None:
     """Extract a Zig release tarball.
 
     Args:
-        tarball_name (str): the path to the tarball
-        output_dir (str): the path to a folder to extract it into
+        tarball_name (`str`): the path to the tarball
+        output_dir (`str`): the path to a folder to extract it into
     """
     try:
         os.mkdir(output_dir)
@@ -126,7 +126,7 @@ def find_zig() -> str:
     """Find a version of Zig new enough to build libpkmn, installing it if needed.
 
     Returns:
-        str: the path to a usable Zig executable
+        **`str`**: the path to a usable Zig executable
     """
     global downloaded_zig
     if downloaded_zig != "":
@@ -263,10 +263,10 @@ def simplify_pkmn_header(header_text: str) -> str:
     Currently discussing whether to do this or just hardcode a copy/pasted slimmed-down pkmn.h
 
     Args:
-        header_text (str): The text of pkmn.h
+        header_text (`str`): The text of pkmn.h
 
     Returns:
-        str: the simplified, parseable header declarations
+        **`str`**: the simplified, parseable header declarations
     """
     # Remove anything C++-specific
     without_cpp_only = re.sub(r'#ifdef __cplusplus(.*?)#endif', "", header_text, flags=re.DOTALL)

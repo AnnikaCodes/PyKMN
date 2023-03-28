@@ -38,10 +38,10 @@ def new_seed(prng: ShowdownRNG) -> int:
     """Creates a new seed from an existing RNG, like the @pkmn/engine benchmark.
 
     Args:
-        prng (ShowdownRNG): The RNG to use.
+        prng (`ShowdownRNG`): The RNG to use.
 
     Returns:
-        int: A new 64-bit RNG seed.
+        **`int`**: A new 64-bit RNG seed.
     """
     return (
         (prng.in_range(0, 0x10000) << 48) |
@@ -54,10 +54,10 @@ def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
     """Generates a random team of Pokémon, like the @pkmn/engine benchmark.
 
     Args:
-        prng (ShowdownRNG): The RNG to use.
+        prng (`ShowdownRNG`): The RNG to use.
 
     Returns:
-        List[PokemonData]: A list of Pokémon data.
+        **`List[PokemonData]`**: A list of Pokémon data.
     """
     team = []
     n = 6
@@ -110,11 +110,11 @@ def random_pick(prng: ShowdownRNG, choices: List[T]) -> T:
     """Picks a random element from a list with a ShowdownRNG.
 
     Args:
-        prng (ShowdownRNG): The RNG to use.
-        choices (List[T]): The list to pick from.
+        prng (`ShowdownRNG`): The RNG to use.
+        choices (`List[T]`): The list to pick from.
 
     Returns:
-        T: The randomly chosen element.
+        **`T`**: The randomly chosen element.
     """
     return choices[prng.in_range(0, len(choices))]
 
@@ -129,9 +129,9 @@ def run(battles: int, rng_seed: int, libpkmn: LibpkmnBinding) -> None:
     """Runs the libpkmn-style benchmark.
 
     Args:
-        battles (int): The number of battles to run.
-        rng_seed (int): The initial seed to use for the RNG.
-        libpkmn (LibpkmnBinding): The libpkmn binding to use.
+        battles (`int`): The number of battles to run.
+        rng_seed (`int`): The initial seed to use for the RNG.
+        libpkmn (`LibpkmnBinding`): The libpkmn binding to use.
     """
     duration = 0
     turns = 0
