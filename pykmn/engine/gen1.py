@@ -1,4 +1,7 @@
-"""Battle simulation for Generation I."""
+"""This is the core of PyKMN's functionality.
+
+It simulates Gen 1 Pokémon battles; the `Battle` class is where you'll want to start.
+"""
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 from pykmn.engine.common import Result, Player, ChoiceType, Softlock, Choice, \
     pack_u16_as_bytes, unpack_u16_from_bytes, pack_two_u4s, unpack_two_u4s, \
@@ -16,7 +19,21 @@ import math
 import random
 
 class Status:
-    """Represents a Pokémon's status."""
+    """Represents a Pokémon's status.
+
+    You can get a `Status` from the `Battle.status` method, or by calling one of the static
+    methods:
+
+    * `Status.HEALTHY()` to get a `Status` for a healthy Pokémon
+    * `Status.SLEEP()` to get a `Status` for a sleeping Pokémon
+    * `Status.POISONED()` to get a `Status` for a poisoned Pokémon
+    * `Status.BURNED()` to get a `Status` for a burned Pokémon
+    * `Status.FROZEN()` to get a `Status` for a frozen Pokémon
+    * `Status.PARALYZED()` to get a `Status` for a paralyzed Pokémon
+    * `Status.SELF_INFLICTED_SLEEP()` to get a `Status` for a self-inflicted sleep (used to track
+       Smogon's [Sleep Clause](https://www.smogon.com/dex/rb/formats/ou/))
+
+    """
     _SLP = 2
     _PSN = 3
     _BRN = 4
@@ -26,8 +43,9 @@ class Status:
     def __init__(self, raw_status: int) -> None:
         """Creates a new Status object.
 
-        PyKMN library consumers should use the static methods to create Status objects instead;
-        this constructor takes a raw value from libpkmn.
+        **PyKMN library consumers should use the static methods described in `Status` documentation
+        to create Status objects instead**;
+        this constructor takes a raw value from `libpkmn`.`
 
         Args:
             raw_status (`int`): The raw status value from libpkmn.
@@ -35,60 +53,60 @@ class Status:
         self._value = raw_status
 
     def asleep(self) -> bool:
-        """Returns whether the Pokémon is asleep.
+        """Returns whether this `Status` represents sleep.
 
         Returns:
-            **`bool`**: _description_
+            **`bool`**: `True` if this `Status` represents sleep, and `False` otherwise.
         """
         return self.sleep_duration() != 0
 
     def sleep_duration(self) -> int:
         """Returns the number of turns the Pokémon will be asleep for.
 
-        Returns 0 if the Pokémon isn't asleep.
+        Returns 0 if this `Status` isn't a sleep status.
 
         Returns:
-            **`int`**: _description_
+            **`int`**: The number of turns the Pokémon will be asleep for.
         """
         return self._value & 0b111
 
     def healthy(self) -> bool:
-        """Returns whether the Pokémon is healthy.
+        """Returns whether this `Status` represents healthy state (no state).
 
         Returns:
-            **`bool`**: _description_
+            **`bool`**: `True` if this `Status` represents a healthy state, and `False` otherwise.
         """
         return self._value == 0
 
     def burned(self) -> bool:
-        """Returns whether the Pokémon is burned.
+        """Returns whether this `Status` represents a burn.
 
         Returns:
-            **`bool`**: _description_
+            **`bool`**: `True` if this `Status` represents a burn, and `False` otherwise.
         """
         return ((self._value >> Status._BRN) & 1) != 0
 
     def frozen(self) -> bool:
-        """Returns whether the Pokémon is frozen.
+        """Returns whether this `Status` represents freeze.
 
         Returns:
-            **`bool`**: _description_
+            **`bool`**: `True` if this `Status` represents freeze, and `False` otherwise.
         """
         return ((self._value >> Status._FRZ) & 1) != 0
 
     def paralyzed(self) -> bool:
-        """Returns whether the Pokémon is paralyzed.
+        """Returns whether this `Status` represents paralysis.
 
         Returns:
-            **`bool`**: _description_
+            **`bool`**: `True` if this `Status` represents paralysis, and `False` otherwise.
         """
         return ((self._value >> Status._PAR) & 1) != 0
 
     def poisoned(self) -> bool:
-        """Returns whether the Pokémon is poisoned.
+        """Returns whether this `Status` represents poisoning.
 
         Returns:
-            **`bool`**: _description_
+            **`bool`**: `True` if this `Status` represents poisoning, and `False` otherwise.
         """
         return ((self._value >> Status._PSN) & 1) != 0
 
@@ -187,12 +205,32 @@ class Status:
 # enum-izing moves only brings us from 822 battles/sec to 816
 
 MovePP = Tuple[str, int]
+"""A `(move name, PP left)` tuple."""
 FullMoveset = Tuple[str, str, str, str]
+"""The full 4-move moveset of a Pokémon."""
 Moveset = Union[FullMoveset, Tuple[str], Tuple[str, str], Tuple[str, str, str]]
+"""A Pokémon's moveset, which can be a tuple of move names of any length in [1, 4]."""
 SpeciesName = str
+"""The name of a Pokémon species."""
 
 class ExtraPokemonData(TypedDict, total=False):
-    """Extra data that can be specified about a Pokémon, such as HP, status, and DVs."""
+    """A dictionary containing extra, optional data about a Pokémon.
+
+    The following keys may be specified, but are all optional:
+    * `'hp'` (**`int`**): The Pokémon's current HP. Defaults to the Pokémon's maximum HP.
+    * `'status'` (**`Status`**): The Pokémon's status condition, if any. Defaults to no status.
+    * `'level'` (**`int`**): The Pokémon's level. Defaults to 100.
+    * `'stats'` (**`pykmn.data.loader.Gen1StatData`**): The Pokémon's stats.
+        Defaults are calculated with `statcalc` from the Pokémon's base stats.
+    * `'types'` (**`Tuple[str, str]`**): The Pokémon's types.
+        Defaults to the Pokémon's species' types.
+    * `'move_pp'` (**`Tuple[int, int, int, int]`**): The PP of each of the Pokémon's moves.
+       Defaults to the maximum PP (with PP Ups) of each move.
+    * `'dvs'` (**`pykmn.data.loader.Gen1StatData`**): The Pokémon's DVs.
+        Defaults to 15 in each stat.
+    * `'exp'` (**`pykmn.data.loader.Gen1StatData`**): The Pokémon's stat experience.
+       Defaults to 65535 in each stat.
+    """
     hp: int
     status: Status
     level: int
@@ -203,7 +241,27 @@ class ExtraPokemonData(TypedDict, total=False):
     exp: Gen1StatData
 
 PokemonData = Union[Tuple[SpeciesName, Moveset], Tuple[SpeciesName, Moveset, ExtraPokemonData]]
+"""A tuple containing the data for a Pokémon.
+
+The tuple can just be the species name and a `Moveset`, or, optionally,
+an `ExtraPokemonData` dictionary can be specified as a third element.
+
+Examples:
+```python
+pikachu: PokemonData = (
+    'Pikachu',
+    ('Thunderbolt', 'Thunder', 'Quick Attack', 'Growl')
+)
+mew: PokemonData = (
+    'Mew',
+    ('Psychic', 'Recover'),
+    {'level': 63, 'status': Status.PARALYZED()}
+)
+```
+"""
+
 PokemonSlot = Union[Literal[1], Literal[2], Literal[3],Literal[4], Literal[5], Literal[6]]
+"""A Pokémon slot, which can be any integer in [1, 6]."""
 
 BoostData = TypedDict('BoostData', {
     'atk': int,
@@ -213,6 +271,17 @@ BoostData = TypedDict('BoostData', {
     'accuracy': int,
     'evasion': int,
 }) # optimization: is a namedtuple/class faster than a dict?
+"""A dictionary representing a Pokémon's stat boosts.
+Returned from `Battle.boosts()`.
+
+The following keys are present:
+* `'atk'` (**`int`**): The Pokémon's Attack stat stage boosts, as an integer in [-6, 6].
+* `'def'` (**`int`**): The Pokémon's Defense stat stage boosts, as an integer in [-6, 6].
+* `'spe'` (**`int`**): The Pokémon's Speed stat stage boosts, as an integer in [-6, 6].
+* `'spc'` (**`int`**): The Pokémon's Special stat stage boosts, as an integer in [-6, 6].
+* `'accuracy'` (**`int`**): The Pokémon's accuracy stat stage boosts, as an integer in [-6, 6].
+* `'evasion'` (**`int`**): The Pokémon's evasion stat stage boosts, as an integer in [-6, 6].
+"""
 
 PartialBoostData = TypedDict('PartialBoostData', {
     'atk': int,
@@ -222,28 +291,67 @@ PartialBoostData = TypedDict('PartialBoostData', {
     'accuracy': int,
     'evasion': int,
 }, total=False)
+"""Like `BoostData`, but with all keys optional,
+so you can specify only the stats you want to change to `Battle.set_boosts()`.
+
+Example:
+```python
+from pykmn.engine.common import Player
+
+# `battle` is a `Battle` object where Player 1 has +1 to Speed
+print(battle.boosts(Player.P1))
+# {'atk': 0, 'def': 0, 'spe': 1, 'spc': 0, 'accuracy': 0, 'evasion': 0}
+
+battle.set_boosts(Player.P1, {'atk': -2})
+print(battle.boosts(Player.P1))
+# {'atk': -2, 'def': 0, 'spe': 1, 'spc': 0, 'accuracy': 0, 'evasion': 0}
+```
+"""
+
 DisableData = namedtuple('DisableData', ['move_slot', 'turns_left'])
+"""Represents information about a Pokémon's Disabled move."""
+DisableData.move_slot.__doc__ = """The slot of the move that's been Disabled."""
+DisableData.turns_left.__doc__ = \
+    """The number of turns left until the Disabled move is usable again."""
 
 class VolatileFlag(IntEnum):
-    """Flags for Pokémon's volatile statuses."""
+    """Flags for Pokémon's volatile statuses.
+
+    These status afflictions disappear when the Pokémon switches out.
+    """
     Bide = LAYOUT_OFFSETS['Volatiles']['Bide']
+    """Flag for when the move Bide is active."""
     Thrashing = LAYOUT_OFFSETS['Volatiles']['Thrashing']
+    """Flag for when a Pokémon is 'thrashing about'."""
     MultiHit = LAYOUT_OFFSETS['Volatiles']['MultiHit']
     Flinch = LAYOUT_OFFSETS['Volatiles']['Flinch']
+    """Flag for when a Pokémon flinched."""
     Charging = LAYOUT_OFFSETS['Volatiles']['Charging']
+    """Flag for when a Pokémon is charging power for a 2-turn move."""
     Binding = LAYOUT_OFFSETS['Volatiles']['Binding']
     Invulnerable = LAYOUT_OFFSETS['Volatiles']['Invulnerable']
     Confusion = LAYOUT_OFFSETS['Volatiles']['Confusion']
+    """Flag for when a Pokémon is confused."""
     Mist = LAYOUT_OFFSETS['Volatiles']['Mist']
+    """Flag for when a Pokémon is protected by Mist."""
     FocusEnergy = LAYOUT_OFFSETS['Volatiles']['FocusEnergy']
+    """Flag for when a Pokémon is under the effect of Focus Energy."""
     Substitute = LAYOUT_OFFSETS['Volatiles']['Substitute']
+    """Flag for when a Pokémon has a Substitute."""
     Recharging = LAYOUT_OFFSETS['Volatiles']['Recharging']
+    """Flag for when a Pokémon is recharging after a move."""
     Rage = LAYOUT_OFFSETS['Volatiles']['Rage']
+    """Flag for when a Pokémon is Rage-ing."""
     LeechSeed = LAYOUT_OFFSETS['Volatiles']['LeechSeed']
+    """Flag for when a Pokémon has been seeded by Leech Seed."""
     Toxic = LAYOUT_OFFSETS['Volatiles']['Toxic']
+    """Flag for when a Pokémon is badly poisoned."""
     LightScreen = LAYOUT_OFFSETS['Volatiles']['LightScreen']
+    """Flag for when a Pokémon is protected by Light Screen."""
     Reflect = LAYOUT_OFFSETS['Volatiles']['Reflect']
+    """Flag for when a Pokémon is protected by Reflect."""
     Transform = LAYOUT_OFFSETS['Volatiles']['Transform']
+    """Flag for when a Pokémon has Transformed."""
 
 def statcalc(
     base_value: int,
@@ -252,38 +360,37 @@ def statcalc(
     dv: int = 15,
     experience: int = 65535
 ) -> int:
-    """Calculate a Pokémon's stats based on its level, base stats, and so forth.
+    """Calculate a Pokémon's stats in Gen I based on its level, base stats, and so forth.
+
+    This function is based on the
+    [formula used by libpkmn](https://github.com/pkmn/engine/blob/48372d4ae7474a78b06a248f35d2763fc6d421f6/src/lib/gen1/data.zig#L411-L418).
 
     Args:
         base_value (`int`): The base value of the stat for this species.
-        is_HP (`bool`, optional): Whether the stat is HP or not. Defaults to False.
+        is_HP (`bool`, optional): Whether the stat is HP (Hit Points) or not. Defaults to False.
         level (`int`): The level of the Pokémon.
         dv (`int`): The Pokémon's DV for this stat.
         experience (`int`): The Pokémon's stat experience for this stat.
 
     Returns:
-        **`int`**: The value of the stat
-    """
+        **`int`**: The calculated value of the stat.
+    """ # noqa: E501 (for the link)
     evs = min(255, math.ceil(math.sqrt(experience)))
     core = (2 * (base_value + dv)) + (evs // 4)
     factor = (level + 10) if is_HP else 5
     return int(((core * level) // 100) + factor) % 2**16
 
-
 # MAJOR TODO!
-    # * properly handle status
-# * write unit tests
 # * make all constructors check array lengths, etc, for validity
 # * write a LOT of integration tests
-# * add support for toggling -Dshowdown & -Dtrace
-#    * support non-Showdown RNG
 # * investigate performance and optimize
-# * simplify typing as needed (and make sure everything's typed)
-# * maybe more documentation?
-
-# Optimization: remove debug asserts
 
 Gen1RNGSeed = List[int]
+"""The RNG seed used for non-Showdown-compatible RNG in Generation I.
+
+It should be a list of 4 16-bit unsigned integers. You only need to use this if you're using an
+alternate `pykmn.engine.libpkmn.LibpkmnBinding` that doesn't have Showdown compatibility mode.
+"""
 
 class Battle:
     """A Generation I Pokémon battle."""
