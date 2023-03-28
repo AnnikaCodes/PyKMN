@@ -16,6 +16,7 @@ _pkmn_engine_bindings.*
 *.so
 /*.c
 /*.o
+/docs/main
 
 # Distribution / packaging
 .Python

@@ -11,8 +11,7 @@ need them.
 """
 from pykmn.data.gen1 import MOVE_IDS, SPECIES_IDS, TYPES
 from pykmn.engine.common import unpack_u16_from_bytes, Slots
-from typing import Union, List, Tuple, Dict
-from collections.abc import Callable
+from typing import Union, List, Tuple, Dict, Callable # noqa: UP035
 import re
 
 moveid_to_name_map: Dict[int, str] = {id: name for name, id in MOVE_IDS.items()}

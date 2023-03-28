@@ -31,14 +31,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
       - name: Set up Pages
         uses: actions/configure-pages@v3
       - name: Install Python
         uses: actions/setup-python@v3
-      - name: Install pdoc
-        run: python3 -m pip install pdoc
+      - name: Install dependencies
+        run: python3 -m pip install pdoc build cffi requests
+      - name: Build PyKMN
+        run: ./build.sh python3
       - name: Build docs
-        run: python3 -m pdoc --docformat google ./pykmn -o docs/main 
+        run: python3 -m pdoc --docformat google ./pykmn -o docs/main
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
