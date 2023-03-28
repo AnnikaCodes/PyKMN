@@ -1,13 +1,22 @@
-"""Python wrappers for libpkmn's random number generation features."""
+"""`pykmn.engine.rng` contains tools for generating random numbers.
+
+Currently, the only RNG implementation provided is the one used by Pokémon Showdown: `ShowdownRNG`.
+This is the same RNG used by libpkmn when in Showdown compatibility mode (on by default).
+Libpkmn has another RNG implementation for Gen I cartridge accuracy,
+but it's not exposed as a public API and therefore isn't in PyKMN.
+"""
 from pykmn.engine.libpkmn import libpkmn_showdown_trace, LibpkmnBinding
 from typing import Any
 
 
 class ShowdownRNG:
-    """Wraps libpkmn's implementation of the random number generator used by Pokémon Showdown.
+    """Wraps `libpkmn`'s implementation of the random number generator used by Pokémon Showdown.
 
     This RNG is used by Showdown for all generations,
     but is most similar to the cartridge RNG in Generations V and VI.
+
+    PyKMN users shouldn't need to construct this class directly; instead, you can
+    use the `ShowdownRNG.from_seed` method to create a new instance.
     """
 
     def __init__(
@@ -23,8 +32,7 @@ class ShowdownRNG:
 
         Args:
             _pkmn_psrng (`Any`): A pkmn_psrng struct.
-            seed (`int`): The seed for the RNG. Must be a 64-bit integer.
-            _libpkmn (`LibpkmnBinding`): The libpkmn to use. Defaults to libpkmn_showdown_trace.
+            seed (`int`): The seed for the RNG. Must be an integer of up to 64 bits.
         """
         # pointer to a pkmn_psrng / PKMN_OPAQUE(PKMN_PSRNG_SIZE) / struct { uint8_t bytes[8]; }
         self._psrng = _pkmn_psrng
@@ -42,8 +50,7 @@ class ShowdownRNG:
 
         Args:
             bytes (`Any`): A pkmn_psrng struct.
-            seed (`int`): The seed for the RNG. Must be a 64-bit integer.
-            _libpkmn (`LibpkmnBinding`, optional): Defaults to libpkmn_showdown_trace.
+            seed (`int`): The seed for the RNG. Must be an integer of up to 64 bits.
         """
         _libpkmn.lib.pkmn_psrng_init(bytes, seed)
 
@@ -52,7 +59,7 @@ class ShowdownRNG:
         """Create a new ShowdownRNG instance with the given seed.
 
         Args:
-            seed (`int`): The seed for the RNG. Must be a 64-bit integer.
+            seed (`int`): The seed for the RNG. Must be an integer of up to 64 bits.
 
         Returns:
             **`ShowdownRNG`**: The new RNG instance.
@@ -89,12 +96,19 @@ class ShowdownRNG:
 
 
     def random_chance(self, numerator: int, denominator: int) -> bool:
-        """Get a boolean from the ShowdownRNG with a numerator/denominator chance of being True.
+        """Get a boolean with a `numerator / denominator` chance of being `True`.
 
         Also advances the seed.
 
         Based on Pokémon Showdown's MIT-licensed RNG implementation, but behaves differently:
         https://github.com/smogon/pokemon-showdown/blob/master/sim/prng.ts
+
+        Args:
+            numerator (`int`): The numerator of the chance fraction.
+            denominator (`int`): The denominator of the chance fraction.
+
+        Returns:
+            **`bool`**: Has a `numerator / denominator` chance of being `True`.
         """
         return self.in_range(0, denominator) < numerator
 
@@ -102,6 +116,6 @@ class ShowdownRNG:
         """Get the current seed of the ShowdownRNG.
 
         Returns:
-            **`int`**: The current seed.
+            **`int`**: The current seed as a 64-bit integer.
         """
         return self._libpkmn.ffi.cast("uint64_t[1]", self._psrng)[0]
