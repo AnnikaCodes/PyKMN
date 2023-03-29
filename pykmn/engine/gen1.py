@@ -11,7 +11,7 @@ from pykmn.engine.rng import ShowdownRNG
 from pykmn.data.gen1 import Gen1StatData, MOVE_IDS, SPECIES_IDS, PartialGen1StatData, \
     SPECIES, TYPES, MOVES, LAYOUT_OFFSETS, LAYOUT_SIZES, MOVE_ID_LOOKUP, SPECIES_ID_LOOKUP
 
-from typing import cast, TypedDict, Literal, Union, List, Tuple
+from typing import cast, TypedDict, Literal, Union, List, Tuple, NewType
 from typing import Sequence # noqa: UP035
 from enum import IntEnum
 from collections import namedtuple
@@ -204,7 +204,7 @@ class Status:
 
 # enum-izing moves only brings us from 822 battles/sec to 816
 
-MovePP = Tuple[str, int]
+MovePP = NewType('MovePP', Tuple[str, int])
 """A `(move name, PP left)` tuple."""
 FullMoveset = Tuple[str, str, str, str]
 """The full 4-move moveset of a Pokémon."""
@@ -213,13 +213,13 @@ Moveset = Union[FullMoveset, Tuple[str], Tuple[str, str], Tuple[str, str, str]]
 SpeciesName = str
 """The name of a Pokémon species."""
 
-class ExtraPokemonData(TypedDict, total=False):
+class ExtraPokemon(TypedDict, total=False):
     """A dictionary containing extra, optional data about a Pokémon.
 
     The following keys may be specified, but are all optional:
     * `'hp'` (**`int`**): The Pokémon's current HP. Defaults to the Pokémon's maximum HP.
     * `'status'` (**`Status`**): The Pokémon's status condition, if any. Defaults to no status.
-    * `'level'` (**`int`**): The Pokémon's level. Defaults to 100.
+    * `'level'` (**`int`**): The Pokémon's level. Defaults to `100`.
     * `'stats'` (**`pykmn.data.loader.Gen1StatData`**): The Pokémon's stats.
         Defaults are calculated with `statcalc` from the Pokémon's base stats.
     * `'types'` (**`Tuple[str, str]`**): The Pokémon's types.
@@ -240,28 +240,35 @@ class ExtraPokemonData(TypedDict, total=False):
     dvs: Gen1StatData
     exp: Gen1StatData
 
-PokemonData = Union[Tuple[SpeciesName, Moveset], Tuple[SpeciesName, Moveset, ExtraPokemonData]]
-"""A tuple containing the data for a Pokémon.
+Pokemon = namedtuple('Pokemon', ['species', 'moves', 'extra'], defaults=[None])
+"""The data data for a Pokémon.
 
-The tuple can just be the species name and a `Moveset`, or, optionally,
-an `ExtraPokemonData` dictionary can be specified as a third element.
+Optionally, an `ExtraPokemon` dictionary can be specified for the `extra` element.
 
 Examples:
 ```python
-pikachu: PokemonData = (
-    'Pikachu',
-    ('Thunderbolt', 'Thunder', 'Quick Attack', 'Growl')
+pikachu = Pokemon((
+    species='Pikachu',
+    moves=('Thunderbolt', 'Thunder', 'Quick Attack', 'Growl')
 )
-mew: PokemonData = (
-    'Mew',
-    ('Psychic', 'Recover'),
-    {'level': 63, 'status': Status.PARALYZED()}
-)
+mew = Pokemon((
+    species='Mew',
+    moves=('Psychic', 'Recover'),
+    extra={'level': 63, 'status': Status.PARALYZED()}
+))
 ```
 """
 
-PokemonSlot = Union[Literal[1], Literal[2], Literal[3],Literal[4], Literal[5], Literal[6]]
-"""A Pokémon slot, which can be any integer in [1, 6]."""
+
+# TODO: should this be an IntEnum?
+class Slot(IntEnum):
+    """A Pokémon slot, which can be any integer in [1, 6]."""
+    ONE = 1
+    TWO = 2
+    THREE = 3
+    FOUR = 4
+    FIVE = 5
+    SIX = 6
 
 BoostData = TypedDict('BoostData', {
     'atk': int,
@@ -367,7 +374,7 @@ def statcalc(
 
     Args:
         base_value (`int`): The base value of the stat for this species.
-        is_HP (`bool`, optional): Whether the stat is HP (Hit Points) or not. Defaults to False.
+        is_HP (`bool`, optional): Whether the stat is HP (Hit Points) or not. Defaults to `False`.
         level (`int`): The level of the Pokémon.
         dv (`int`): The Pokémon's DV for this stat.
         experience (`int`): The Pokémon's stat experience for this stat.
@@ -393,12 +400,16 @@ alternate `pykmn.engine.libpkmn.LibpkmnBinding` that doesn't have Showdown compa
 """
 
 class Battle:
-    """A Generation I Pokémon battle."""
+    """A Generation I Pokémon battle.
+
+    The most important methods here are `possible_choices()` and `update()`;
+    all the others are either for increased performance or managing the battle state.
+    """
 
     def __init__(
         self,
-        p1_team: Sequence[PokemonData],
-        p2_team: Sequence[PokemonData],
+        p1_team: Sequence[Pokemon],
+        p2_team: Sequence[Pokemon],
         p1_last_selected_move: str = 'None',
         p1_last_used_move: str = 'None',
         p2_last_selected_move: str = 'None',
@@ -410,29 +421,42 @@ class Battle:
         rng_seed: Union[int, Gen1RNGSeed, None] = None,
         libpkmn: LibpkmnBinding = libpkmn_showdown_trace,
     ) -> None:
-        """Initialize a new battle.
+        """Creates a new Gen I `Battle` object.
+
+        The only required parameters are `p1_team` and `p2_team`, which are both
+        lists of `Pokemon` — you must provide at least 1 and not more than 6 elements in each.
+
+        All the other parameters have sensible defaults, but can be specified to preconfigure
+        the battle state to your liking.
+
+        You can specify an alternate `pykmn.engine.libpkmn.LibpkmnBinding`
+        via the `libpkmn` parameter; that module's documentation has more information,
+        but essentially you can use this to turn off protocol logging (for better performance)
+        or to enable cartridge compatibility (instead of Pokémon Showdown compatibility).
 
         Args:
-            p1_team (`List[PokemonData]`): Player 1's team.
-            p2_team (`List[PokemonData]`): Player 2's team.
+            p1_team (`Sequence[pykmn.engine.gen1.Pokemon]`): Player 1's team.
+            p2_team (`Sequence[pykmn.engine.gen1.Pokemon]`): Player 2's team.
             p1_last_selected_move (`str`, optional):
-              Player 1's last selected move. Defaults to None.
+              Player 1's last selected move. Defaults to none.
             p1_last_used_move (`str`, optional):
-              Player 1's last used move. Defaults to None.
+              Player 1's last used move. Defaults to none.
             p2_last_selected_move (`str`, optional):
-              Player 2's last selected move. Defaults to None.
-            p2_last_used_move (`str`, optional): Player 2's last used move. Defaults to None.
-            start_turn (`int`, optional): The turn the battle starts on. Defaults to 0.
-            last_damage (`int`, optional): The last damage dealt in the battle. Defaults to 0.
-            p1_move_idx (`int`, optional): The last move index selected by Player 1. Defaults to 0.
-            p2_move_idx (`int`, optional): The last move index selected by Player 2. Defaults to 0.
+              Player 2's last selected move. Defaults to none.
+            p2_last_used_move (`str`, optional): Player 2's last used move. Defaults to none.
+            start_turn (`int`, optional): The turn the battle starts on.
+                Defaults to `0` (i.e. before players send out their Pokémon),
+            last_damage (`int`, optional): The last damage dealt in the battle.
+            p1_move_idx (`int`, optional): The last move index selected by Player 1.
+            p2_move_idx (`int`, optional): The last move index selected by Player 2.
             rng_seed (`int`, optional): The seed to initialize the battle's RNG with.
                 Defaults to a random seed.
                 If a non-Showdown-compatible libpkmn is provided,
                 you must provide a list of 10 integers instead.
                 If you provide a list of integers and a Showdown-compatible libpkmn,
                 or don't specify a libpkmn, an exception will be raised.
-            libpkmn (`LibpkmnBinding`, optional): Defaults to libpkmn_showdown_trace.
+            libpkmn (`pykmn.engine.libpkmn.LibpkmnBinding`, optional): The libpkmn build to use.
+                Defaults to `pykmn.engine.libpkmn.libpkmn_showdown_trace`.
         """
         # optimization: is it faster to not put this on the Battle class?
         self._libpkmn = libpkmn
@@ -515,7 +539,7 @@ class Battle:
                 for (i, seed) in enumerate(rng_seed):
                     self._pkmn_battle.bytes[offset + i] = seed
 
-    def _initialize_pokemon(self, battle_offset: int, pokemon_data: PokemonData) -> None:
+    def _initialize_pokemon(self, battle_offset: int, pokemon_data: Pokemon) -> None:
         """Initialize a Pokémon in a battle."""
         hp = None
         status = 0
@@ -525,29 +549,28 @@ class Battle:
         move_pp = None
         dvs: Gen1StatData = {'hp': 15, 'atk': 15, 'def': 15, 'spe': 15, 'spc': 15}
         exp: Gen1StatData = {'hp': 65535, 'atk': 65535, 'def': 65535, 'spe': 65535, 'spc': 65535}
-        if len(pokemon_data) == 3:
-            species_name, move_names, extra_data = \
-                cast(Tuple[SpeciesName, Moveset, ExtraPokemonData], pokemon_data)
+        species_name = pokemon_data.species
+        move_names = pokemon_data.moves
+        if pokemon_data.extra is not None:
             # possible optimization: is it faster to pass this as an array/extra parameters
             # and avoid dict lookups?
-            if 'hp' in extra_data:
-                hp = extra_data['hp']
-            if 'status' in extra_data:
-                status = extra_data['status']._value
-            if 'level' in extra_data:
-                level = extra_data['level']
-            if 'stats' in extra_data:
-                stats = extra_data['stats']
-            if 'types' in extra_data:
-                types = extra_data['types']
-            if 'move_pp' in extra_data:
-                move_pp = extra_data['move_pp']
-            if 'dvs' in extra_data:
-                dvs = extra_data['dvs']
-            if 'exp' in extra_data:
-                exp = extra_data['exp']
-        else:
-            species_name, move_names = cast(Tuple[SpeciesName, Moveset], pokemon_data)
+            if 'hp' in pokemon_data.extra:
+                hp = pokemon_data.extra['hp']
+            if 'status' in pokemon_data.extra:
+                status = pokemon_data.extra['status']._value
+            if 'level' in pokemon_data.extra:
+                level = pokemon_data.extra['level']
+            if 'stats' in pokemon_data.extra:
+                stats = pokemon_data.extra['stats']
+            if 'types' in pokemon_data.extra:
+                types = pokemon_data.extra['types']
+            if 'move_pp' in pokemon_data.extra:
+                move_pp = pokemon_data.extra['move_pp']
+            if 'dvs' in pokemon_data.extra:
+                dvs = pokemon_data.extra['dvs']
+            if 'exp' in pokemon_data.extra:
+                exp = pokemon_data.extra['exp']
+
 
         if species_name == 'None':
             if stats is None:
@@ -631,36 +654,196 @@ class Battle:
         offset += 1
         # assert offset == battle_offset + LAYOUT_SIZES['Pokemon']
 
+    def possible_choices(
+        self,
+        player: Player,
+        previous_turn_result: Result,
+    ) -> List[Choice]:
+        """Gets the possible choices for the given player, which can then be passed to `update()`.
+
+        The returned choice list should only be used until the next call to this function,
+        since each call reuses the same array of memory to keep PyKMN performant.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get choices for.
+            previous_turn_result (`pykmn.engine.common.Result`): The result of the previous turn
+                (if it's the first turn, pass two `pykmn.engine.common.Choice.PASS()`es to tell the
+                simulator to send out the players' first Pokémon).
+
+        Raises:
+            `pykmn.engine.common.Softlock`: If no choices are available,
+                meaning that the battle has softlocked.
+
+        Returns:
+            **`List[pykmn.engine.common.Choice]`**: The choices that this player can make.
+        """
+        # optimization: it might be faster actually to cache _pkmn_result in the battle??
+        # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
+
+        num_choices = self._fill_choice_buffer(player, previous_turn_result)
+        if num_choices == 0:
+            raise Softlock("Zero choices are available.")
+
+        choices: List[Choice] = []
+        for i in range(num_choices):
+            choices.append(Choice(self._choice_buf[i], _libpkmn=self._libpkmn))
+        return choices
+
+    def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
+        """Update the battle with the given choices.
+
+        Choices must be obtained by calling `possible_choices()`
+        after the last `update()` call;
+        otherwise, your choices may be invalid and cause bugs.
+
+        Calling `update()` will advance the simulation and update the battle state.
+
+        Args:
+            p1_choice (`pykmn.engine.common.Choice`): The choice to make for player 1.
+            p2_choice (`pykmn.engine.common.Choice`): The choice to make for player 2.
+
+        Returns:
+            **`Tuple[pykmn.engine.common.Result, List[int]]`**: The result of the choice,
+            and the trace as a list of
+            [libpkmn protocol bytes](https://github.com/pkmn/engine/blob/main/docs/PROTOCOL.md).
+            You can feed the trace into `pykmn.engine.protocol.parse_protocol` to get
+            Pokémon Showdown-style protocol out of it, which is often easier to work with.
+        """
+        return self.update_raw(p1_choice._pkmn_choice, p2_choice._pkmn_choice)
+
+    def possible_choices_raw(
+        self,
+        player: Player,
+        previous_turn_result: Result,
+    ) -> List[int]:
+        """Get the possible choices in raw format for the given player.
+
+        This method returns raw integers instead of `pykmn.engine.common.Choice` objects;
+        these integers can be passed directly to `update_raw()`.
+        If you need to inspect the choice data, use `possible_choices()` instead.
+
+        Like with `possible_choices()`, you MUST consume the returned choices
+        before calling any possible_choices method again
+        (even if you mix and match raw and regular); otherwise, the buffer will be overwritten.
+
+        If the returned list is length 0, a softlock has occurred.
+        possible_choices() automatically checks for this and raises an exception, but
+        possible_choices_raw() does not (for speed).
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get choices for.
+            previous_turn_result (`pykmn.engine.common.Result`): The result of the previous turn
+                (the first turn should be two PASS choices — pass `0`s into `update_raw()`).
+
+        Returns:
+            **`List[int]`**: The possible choices.
+        """
+        num_choices = self._fill_choice_buffer(player, previous_turn_result)
+        return self._choice_buf[0:num_choices]
+
+    def update_raw(self, p1_choice: int, p2_choice: int) -> Tuple[Result, List[int]]:
+        """Update the battle with the given choice.
+
+        This method accepts raw integers for choices
+        instead of `pykmn.engine.common.Choice` objects.
+
+        If you don't get these from `possible_choices_raw()`, things may go wrong.
+        Please don't just supply arbitrary numbers to this function.
+
+        The return values for this function are the same as for `update()`.
+
+        Args:
+            p1_choice (`int`): The choice to make for player 1.
+            p2_choice (`int`): The choice to make for player 2.
+
+        Returns:
+            **`Tuple[pykmn.engine.common.Result, List[int]]`**: The result of the choice,
+            and the trace as a list of protocol bytes.
+        """
+        _pkmn_result = self._libpkmn.lib.pkmn_gen1_battle_update(
+            self._pkmn_battle,          # pkmn_gen1_battle *battle
+            p1_choice,     # pkmn_choice c1
+            p2_choice,     # pkmn_choice c2
+            self.trace_buf,                  # uint8_t *buf
+            self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
+        )
+
+        result = Result(_pkmn_result, _libpkmn=self._libpkmn)
+        if result.is_error():
+            # per pkmn.h:
+            # This can only happen if libpkmn was built with trace logging enabled and the buffer
+            # provided to the update function was not large  enough to hold all of the data
+            # (which is only possible if the buffer being used was smaller than the
+            # generation in question's MAX_LOGS bytes).
+            raise Exception(
+                "An error was thrown in libpkmn while updating the battle. " +
+                "This should never happen; please file a bug report with PyKMN at " +
+                "https://github.com/AnnikaCodes/PyKMN/issues/new"
+            )
+        return (result, self.trace_buf)
+
+
     def last_selected_move(self, player: Player) -> str:
-        """Get the last move selected by a player."""
+        """Get the last move selected by a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the last move for.
+
+        Returns:
+            **`str`**: The name of the last move selected by the player.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_selected_move']
         return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
     def set_last_selected_move(self, player: Player, move: str) -> None:
-        """Set the last move selected by a player."""
+        """Set the last move selected by a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the last move for.
+            move (`str`): The name of the move to set.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_selected_move']
         self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
 
     def last_used_move(self, player: Player) -> str:
-        """Get the last move used by a player."""
+        """Get the last move used by a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the last move for.
+
+        Returns:
+            **`str`**: The name of the last move used by the player.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_used_move']
         return MOVE_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
     def set_last_used_move(self, player: Player, move: str) -> None:
-        """Set the last move used by a player."""
+        """Set the last move used by a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the last move for.
+            move (`str`): The name of the move to be set as the last move.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['last_used_move']
         self._pkmn_battle.bytes[offset] = MOVE_IDS[move]
 
     def active_pokemon_stats(self, player: Player) -> Gen1StatData:
-        """Get the stats of the active Pokémon of a player."""
+        """Get the stats of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the stats for.
+
+        Returns:
+            **`pykmn.engine.gen1.common.Gen1StatData`**: The stats of the active Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -675,7 +858,12 @@ class Battle:
         return cast(Gen1StatData, stats)
 
     def set_active_pokemon_stats(self, player: Player, new_stats: PartialGen1StatData) -> None:
-        """Set the stats of the active Pokémon of a player."""
+        """Set the stats of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the stats for.
+            new_stats (`pykmn.engine.gen1.common.PartialGen1StatData`): The new stats to set.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -688,7 +876,14 @@ class Battle:
             offset += 2
 
     def active_pokemon_species(self, player: Player) -> str:
-        """Get the species of the active Pokémon of a player."""
+        """Get the species of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the species for.
+
+        Returns:
+            **`str`**: The name of the species of the active Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -696,7 +891,12 @@ class Battle:
         return SPECIES_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
     def set_active_pokemon_species(self, player: Player, new_species: str) -> None:
-        """Set the species of the active Pokémon of a player."""
+        """Set the species of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the species for.
+            new_species (`str`): The name of the species to be set.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -704,7 +904,14 @@ class Battle:
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
     def active_pokemon_types(self, player: Player) -> Union[Tuple[str, str], Tuple[str]]:
-        """Get the types of the active Pokémon of a player."""
+        """Get the types of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the types for.
+
+        Returns:
+            **`Tuple[str, str]` | `Tuple[str]`**: The type(s) of the active Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -713,7 +920,14 @@ class Battle:
         return (TYPES[type1], TYPES[type2]) if type2 != type1 else (TYPES[type1], )
 
     def boosts(self, player: Player) -> BoostData:
-        """Get the boosts of the active Pokémon of a player."""
+        """Get the boosts of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the boosts for.
+
+        Returns:
+            **`pykmn.engine.gen1.common.BoostData`**: The boosts of that player's active Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -731,7 +945,13 @@ class Battle:
         }
 
     def set_boosts(self, player: Player, new_boosts: PartialBoostData) -> None:
-        """Set the boosts of the active Pokémon of a player."""
+        """Set the boosts of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the boosts for.
+            new_boosts (`pykmn.engine.gen1.common.PartialBoostData`): The new boosts to set.
+            You can omit any stats whose stat stage boosts you want to leave unchanged.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -751,7 +971,15 @@ class Battle:
         )
 
     def volatile(self, player: Player, volatile: VolatileFlag) -> bool:
-        """Get a volatile of the active Pokémon of a player."""
+        """Get the value of a volatile-status flag of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the volatile flag for.
+            volatile (`pykmn.engine.common.VolatileFlag`): The volatile-status flag to get.
+
+        Returns:
+            **`bool`**: `True` if the volatile-status flag is set and `False` otherwise.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -763,8 +991,14 @@ class Battle:
         # https://stackoverflow.com/questions/9298865/get-n-th-bit-of-an-integer
         return not not(volatile_uint32_ptr[0] & (1 << volatile))
 
-    def set_volatile(self, player: Player, volatile: VolatileFlag, value: bool) -> None:
-        """Set a volatile of the active Pokémon of a player."""
+    def set_volatile(self, player: Player, flag: VolatileFlag, value: bool) -> None:
+        """Set a volatile-status flag of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the volatile flag for.
+            flag (`pykmn.engine.common.VolatileFlag`): The volatile-status flag to set.
+            value (`bool`): `True` if the flag should be set, or `False` if it should be unset.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -774,12 +1008,19 @@ class Battle:
             self._pkmn_battle.bytes[offset:(offset + 4)],
         )
         if value:
-            volatile_uint32_ptr[0] |= (1 << volatile)
+            volatile_uint32_ptr[0] |= (1 << flag)
         else:
-            volatile_uint32_ptr[0] &= ~(1 << volatile)
+            volatile_uint32_ptr[0] &= ~(1 << flag)
 
     def confusion_turns_left(self, player: Player) -> int:
-        """Get the confusion counter of the active Pokémon of a player."""
+        """Get the number of turns left in Confusion of a player's active Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the confusion counter for.
+
+        Returns:
+            **`int`**: The number of turns left in Confusion.
+        """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -796,7 +1037,18 @@ class Battle:
         )
 
     def set_confusion_turns_left(self, player: Player, new_turns_left: int) -> None:
-        """Set the confusion counter of the active Pokémon of a player."""
+        """Set the number of turns left in Confusion of a player's active Pokémon.
+
+        If the Pokémon isn't already confused, or if you're setting the number of turns left to 0,
+        you should probably also set the Confusion volatile-status flag with `set_volatile()`.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the confusion counter for.
+            new_turns_left (`int`): The new number of turns left in Confusion.
+
+        Raises:
+            `AssertionError`: If `new_turns_left` is not an unsigned 3-bit integer.
+        """
         assert new_turns_left <= (2**3) and new_turns_left >= 0, \
             "new_turns_left must be an unsigned 3-bit integer"
 
@@ -818,7 +1070,13 @@ class Battle:
     def attacks_left(self, player: Player) -> int:
         """Get the attacks left counter of the active Pokémon.
 
-        This counter is used for Bide and Thrash.
+        This counter is used for the moves Bide and Thrash.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the counter for.
+
+        Returns:
+            **`int`**: The attacks left counter.
         """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -838,6 +1096,13 @@ class Battle:
         """Set the attacks left counter of the active Pokémon.
 
         This counter is used for Bide and Thrash.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the counter for.
+            new_attacks_left (`int`): The new value of the attacks left counter.
+
+        Raises:
+            `AssertionError`: If `new_attacks_left` is not an unsigned 3-bit integer.
         """
         assert new_attacks_left <= (2**3) and new_attacks_left >= 0, \
             "new_attacks_left must be an unsigned 3-bit integer"
@@ -865,6 +1130,12 @@ class Battle:
 
         You can read more in the libpkmn docs:
         https://github.com/pkmn/engine/blob/main/src/lib/gen1/README.md#Volatiles
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the volatile state for.
+
+        Returns:
+            **`int`**: The volatile state.
         """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -884,6 +1155,10 @@ class Battle:
 
         You can read more in the libpkmn docs:
         https://github.com/pkmn/engine/blob/main/src/lib/gen1/README.md#Volatiles
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the volatile state for.
+            new_state (`int`): The new value of the volatile state.
         """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
@@ -893,7 +1168,14 @@ class Battle:
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_state)
 
     def substitute_hp(self, player: Player) -> int:
-        """Get the HP of the Substitute up on a player's side."""
+        """Get the HP of the Substitute up on a player's side.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the Substitute HP for.
+
+        Returns:
+            **`int`**: The number of Hit Points the Substitute has.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -903,7 +1185,12 @@ class Battle:
         return self._pkmn_battle.bytes[offset]
 
     def set_substitute_hp(self, player: Player, new_hp: int) -> None:
-        """Set the HP of the Substitute up on a player's side."""
+        """Set the HP of the Substitute up on a player's side.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the Substitute HP for.
+            new_hp (`int`): The new number of HP to give the Substitute.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -917,7 +1204,12 @@ class Battle:
         player: Player,
         new_types: Union[Tuple[str, str], Tuple[str]]
     ) -> None:
-        """Set the types of the active Pokémon of a player."""
+        """Set the types of the active Pokémon of a player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the types for.
+            new_types (`Tuple[str, str]` | `Tuple[str]`): The new type(s) of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -927,8 +1219,20 @@ class Battle:
             TYPES.index(new_types[1 if len(new_types) == 2 else 0]),
         )
 
-    def transformed_into(self, player: Player) -> Tuple[Player, PokemonSlot]:
-        """Get the player and slot of the Pokémon that the active Pokémon transformed into."""
+    def transformed_into(self, player: Player) -> Tuple[Player, Slot]:
+        """Get the player and slot of the Pokémon that the active Pokémon transformed into.
+
+        If the active Pokémon has not transformed, this will probably return zeroes, but
+        you shouldn't rely on that.
+        Check the `VolatileFlag.Transform` with `volatile` first.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the transformed Pokémon for.
+
+        Returns:
+            **`Tuple[Player, Slot]`**: The player and slot of the Pokémon that the active
+            Pokémon has transformed into.
+        """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -942,15 +1246,23 @@ class Battle:
             offset=bit_offset,
             length=4,
         )
-        slot = cast(PokemonSlot, transform_u4 & 3)
+        slot = cast(Slot, transform_u4 & 3)
         return (Player.P1 if (transform_u4 >> 3) == 0 else Player.P2, slot)
 
     def set_transformed_into(
         self,
         player: Player,
-        new_transformed_into: Tuple[Player, PokemonSlot]
+        new_transformed_into: Tuple[Player, Slot]
     ) -> None:
-        """Set the player and slot that the active Pokémon transformed into."""
+        """Set the player and slot that the active Pokémon transformed into.
+
+        This won't set the `VolatileFlag.Transform` flag, so you'll need to do that yourself.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the transformed Pokémon for.
+            new_transformed_into (`Tuple[Player, Slot]`): The player and slot of the
+                Pokémon that the active Pokémon has transformed into.
+        """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -968,7 +1280,18 @@ class Battle:
         )
 
     def disable_data(self, player: Player) -> DisableData:
-        """Get data about a Disabled move of the active Pokémon of a player."""
+        """Get data about a Disabled move of the active Pokémon of a player.
+
+        If the active Pokémon doesn't have a Disabled move, this will probably return zeroes, but
+        you shouldn't rely on that.
+        Check the `VolatileFlag.Disable` with `volatile()` first.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the Disabled move data for.
+
+        Returns:
+            **`DisableData`**: The data about the Disabled move.
+        """
         base = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -993,7 +1316,14 @@ class Battle:
         return DisableData(move_slot=move, turns_left=duration)
 
     def set_disable_data(self, player: Player, new_disable_data: DisableData) -> None:
-        """Set data about a Disabled move of the active Pokémon of a player."""
+        """Set data about a Disabled move of the active Pokémon of a player.
+
+        This won't set or unset the `VolatileFlag.Disable` flag, so you'll need to do that yourself.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the Disabled move data for.
+            new_disable_data (`DisableData`): The data about the Disabled move.
+        """
         base = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -1018,7 +1348,18 @@ class Battle:
         )
 
     def toxic_severity(self, player: Player) -> int:
-        """Get the Toxic counter of the active Pokémon of a player."""
+        """Get the Toxic counter of the active Pokémon of a player.
+
+        If the active Pokémon isn't poisoned with Toxic, this will probably return zero, but you
+        shouldn't rely on that. Check the `VolatileFlag.Toxic` with `volatile()` first.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the Toxic counter for.
+
+        Returns:
+            **`int`**: The number of turns that damage from Toxic has accumulated for.
+
+        """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -1034,7 +1375,15 @@ class Battle:
         )
 
     def set_toxic_severity(self, player: Player, new_toxic_counter: int) -> None:
-        """Set the Toxic counter of the active Pokémon of a player."""
+        """Set the Toxic counter of the active Pokémon of a player.
+
+        This won't set or unset the `VolatileFlag.Toxic` flag, so you'll need to do that yourself.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the Toxic counter for.
+            new_toxic_counter (`int`): The number of turns that damage from Toxic has accumulated
+                for.
+        """
         byte_offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['active'] + \
@@ -1052,7 +1401,11 @@ class Battle:
 
 
     def turn(self) -> int:
-        """Get the current turn."""
+        """Get the current turn of the battle.
+
+        Returns:
+            **`int`**: The current turn of the battle.
+        """
         offset = LAYOUT_OFFSETS['Battle']['turn']
         return unpack_u16_from_bytes(
             self._pkmn_battle.bytes[offset],
@@ -1060,12 +1413,20 @@ class Battle:
         )
 
     def set_turn(self, new_turn: int) -> None:
-        """Set the current turn."""
+        """Set the current turn of the battle.
+
+        Args:
+            new_turn (`int`): The new turn of the battle.
+        """
         offset = LAYOUT_OFFSETS['Battle']['turn']
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_turn)
 
     def last_damage(self) -> int:
-        """Get the last damage dealt."""
+        """Get the last damage dealt.
+
+        Returns:
+            **`int`**: The last damage dealt.
+        """
         offset = LAYOUT_OFFSETS['Battle']['last_damage']
         return unpack_u16_from_bytes(
             self._pkmn_battle.bytes[offset],
@@ -1073,20 +1434,39 @@ class Battle:
         )
 
     def set_last_damage(self, new_last_damage: int) -> None:
-        """Set the last damage dealt."""
+        """Set the last damage dealt.
+
+        Args:
+            new_last_damage (`int`): The new last damage dealt.
+        """
         offset = LAYOUT_OFFSETS['Battle']['last_damage']
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_last_damage)
 
     def last_used_move_index(self, player: Player) -> int:
-        """Get the index within the move arrayof the last move used by a given player."""
+        """Get the index within the move array of the last move used by a given player.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the last used move index for.
+
+        Returns:
+            **`int`**: The index within the move array of the last move used by the given player.
+        """
         offset = LAYOUT_OFFSETS['Battle']['last_selected_indexes'] + player
         return unpack_u16_from_bytes(
             self._pkmn_battle.bytes[offset],
             self._pkmn_battle.bytes[offset + 1],
         )
 
-    def current_hp(self, player: Player, pokemon: PokemonSlot) -> int:
-        """Get the current HP of a Pokémon."""
+    def current_hp(self, player: Player, pokemon: Slot) -> int:
+        """Get the current HP of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to get the Pokémon's HP for.
+            pokemon (`Slot`): The slot number of the Pokémon to get the HP for.
+
+        Returns:
+            **`int`**: The current HP of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1097,8 +1477,14 @@ class Battle:
             self._pkmn_battle.bytes[offset + 1],
         )
 
-    def set_current_hp(self, player: Player, pokemon: PokemonSlot, new_hp: int) -> None:
-        """Set the current HP of a Pokémon."""
+    def set_current_hp(self, player: Player, pokemon: Slot, new_hp: int) -> None:
+        """Set the current HP of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player to set the Pokémon's HP for.
+            pokemon (`Slot`): The slot number of the Pokémon to set the HP for.
+            new_hp (`int`): The new current HP value for the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1106,8 +1492,16 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['hp']
         self._pkmn_battle.bytes[offset:(offset + 2)] = pack_u16_as_bytes(new_hp)
 
-    def stats(self, player: Player, pokemon: PokemonSlot) -> Gen1StatData:
-        """Get the stats of a Pokémon."""
+    def stats(self, player: Player, pokemon: Slot) -> Gen1StatData:
+        """Get the stats of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's stats to get.
+            pokemon (`Slot`): The slot number of the Pokémon to get the stats for.
+
+        Returns:
+            **`pykmn.data.loader.Gen1StatData`**: The stats of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1125,10 +1519,16 @@ class Battle:
     def set_stats(
         self,
         player: Player,
-        pokemon: PokemonSlot,
+        pokemon: Slot,
         new_stats: PartialGen1StatData,
     ) -> None:
-        """Set the stats of a Pokémon."""
+        """Set the stats of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's stats to set.
+            pokemon (`Slot`): The slot number of the Pokémon to set the stats for.
+            new_stats (`pykmn.data.loader.PartialGen1StatData`): The new stats for the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1142,7 +1542,7 @@ class Battle:
             offset += 2
 
     # TODO: is this the most performant way to do this? Maybe an enum or separate method?
-    def moves(self, player: Player, pokemon: Union[PokemonSlot, Literal["Active"]]) -> Moveset:
+    def moves(self, player: Player, pokemon: Union[Slot, Literal["Active"]]) -> Moveset:
         """Get the moves of a Pokémon."""
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
@@ -1167,9 +1567,20 @@ class Battle:
     def pp_left(
         self,
         player: Player,
-        pokemon: Union[PokemonSlot, Literal["Active"]]
+        pokemon: Union[Slot, Literal["Active"]]
     ) -> Tuple[int, ...]:
-        """Get the PP left of a Pokémon's moves."""
+        """Get the PP left of a Pokémon's moves.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's moves to get.
+            pokemon (`Slot` | `"Active"`):
+                The slot number of the Pokémon to get the moves for.
+                Specify `"Active"` to get the moves of that player's active Pokémon.
+
+        Returns:
+            **`Tuple[int, ...]`**: The PP left of the Pokémon's moves.
+            The tuple's length is the number of moves the Pokémon has.
+        """
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
                 LAYOUT_SIZES['Side'] * player + \
@@ -1190,9 +1601,20 @@ class Battle:
     def moves_with_pp(
         self,
         player: Player,
-        pokemon: Union[PokemonSlot, Literal["Active"]]
+        pokemon: Union[Slot, Literal["Active"]]
     ) -> Tuple[MovePP, ...]:
-        """Get the moves of a Pokémon with their PP."""
+        """Get the moves of a Pokémon with their PP.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's moves to get.
+            pokemon (`Slot` | `"Active"`):
+                The slot number of the Pokémon to get the moves for.
+            Specify `"Active"` to get the moves of that player's active Pokémon.
+
+        Returns:
+            **`Tuple[MovePP, ...]`**: The moves of the Pokémon with their PP.
+            The tuple's length is the number of moves the Pokémon has.
+        """
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
                 LAYOUT_SIZES['Side'] * player + \
@@ -1205,19 +1627,29 @@ class Battle:
                 LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
                 LAYOUT_OFFSETS['Pokemon']['moves']
         bytes = self._pkmn_battle.bytes
-        return tuple(
+        return cast(Tuple[MovePP, ...], tuple(
             (MOVE_ID_LOOKUP[bytes[offset + n]], bytes[offset + n + 1]) \
                 for n in range(0, 8, 2) \
                 if bytes[offset + n] != 0
-        )
+        ))
 
     def set_moves(
         self,
         player: Player,
-        pokemon: Union[PokemonSlot, Literal["Active"]],
+        pokemon: Union[Slot, Literal["Active"]],
         new_moves: Tuple[MovePP, MovePP, MovePP, MovePP]
     ) -> None:
-        """Set the moves of a Pokémon."""
+        """Set the moves of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's moves to set.
+            pokemon (`Slot` | `"Active"`):
+                The slot number of the Pokémon to set the moves for.
+                Specify `"Active"` to set the moves of that player's active Pokémon.
+            new_moves (`Tuple[MovePP, MovePP, MovePP, MovePP]`):
+                The new move names and PP values of the Pokémon.
+
+        """
         if not isinstance(pokemon, int):
             offset = LAYOUT_OFFSETS['Battle']['sides'] + \
                 LAYOUT_SIZES['Side'] * player + \
@@ -1234,8 +1666,16 @@ class Battle:
             self._pkmn_battle.bytes[offset + i*2] = MOVE_IDS[move]
             self._pkmn_battle.bytes[offset + i*2 + 1] = pp
 
-    def status(self, player: Player, pokemon: PokemonSlot) -> Status:
-        """Get the status of a Pokémon."""
+    def status(self, player: Player, pokemon: Slot) -> Status:
+        """Get the status of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's status to get.
+            pokemon (`Slot`): The slot number of the Pokémon to get the status for.
+
+        Returns:
+            **`Status`**: The status of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1243,17 +1683,32 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['status']
         return Status(self._pkmn_battle.bytes[offset])
 
-    def set_status(self, player: Player, pokemon: PokemonSlot, new_status: Status) -> None:
-        """Set the status of a Pokémon."""
+    def set_status(self, player: Player, pokemon: Slot, new_status: Status) -> None:
+        """Set the status condition of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's status to set.
+            pokemon (`Slot`): The slot number of the Pokémon to set the status for.
+            new_status (`Status`): The new status condition of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['status']
         self._pkmn_battle.bytes[offset] = new_status._value
-    # optimization: make Species an enum to avoid lookups
-    def species(self, player: Player, pokemon: PokemonSlot) -> str:
-        """Get the species of a Pokémon."""
+
+    # optimization: make Species an enum to avoid lookups?
+    def species(self, player: Player, pokemon: Slot) -> str:
+        """Get the species of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's species to get.
+            pokemon (`Slot`): The slot number of the Pokémon to get the species for.
+
+        Returns:
+            **`str`**: The species of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1261,8 +1716,14 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['species']
         return SPECIES_ID_LOOKUP[self._pkmn_battle.bytes[offset]]
 
-    def set_species(self, player: Player, pokemon: PokemonSlot, new_species: str) -> None:
-        """Set the species of a Pokémon."""
+    def set_species(self, player: Player, pokemon: Slot, new_species: str) -> None:
+        """Set the species of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's species to set.
+            pokemon (`Slot`): The slot number of the Pokémon to set the species for.
+            new_species (`str`): The new species of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1270,8 +1731,16 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['species']
         self._pkmn_battle.bytes[offset] = SPECIES_IDS[new_species]
 
-    def types(self, player: Player, pokemon: PokemonSlot) -> Union[Tuple[str, str], Tuple[str]]:
-        """Get the types of a Pokémon."""
+    def types(self, player: Player, pokemon: Slot) -> Union[Tuple[str, str], Tuple[str]]:
+        """Get the types of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's types to get.
+            pokemon (`Slot`): The slot number of the Pokémon to get the types for.
+
+        Returns:
+            **`Tuple[str, str]` | `Tuple[str]`**: The type(s) of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1280,8 +1749,14 @@ class Battle:
         (type1, type2) = unpack_two_u4s(self._pkmn_battle.bytes[offset])
         return (TYPES[type1], TYPES[type2]) if type2 != type1 else (TYPES[type1],)
 
-    def set_types(self, player: Player, pokemon: PokemonSlot, new_types: Tuple[str, str]) -> None:
-        """Set the types of a Pokémon."""
+    def set_types(self, player: Player, pokemon: Slot, new_types: Tuple[str, str]) -> None:
+        """Set the types of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's types to set.
+            pokemon (`Slot`): The slot number of the Pokémon to set the types for.
+            new_types (`Tuple[str, str]`): The new types of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1292,8 +1767,16 @@ class Battle:
             TYPES.index(new_types[1])
         )
 
-    def level(self, player: Player, pokemon: PokemonSlot) -> int:
-        """Get the level of a Pokémon."""
+    def level(self, player: Player, pokemon: Slot) -> int:
+        """Get the level of a Pokémon.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's level to get.
+            pokemon (`Slot`): The slot number of the Pokémon to get the level for.
+
+        Returns:
+            **`int`**: The level of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
@@ -1301,118 +1784,22 @@ class Battle:
             LAYOUT_OFFSETS['Pokemon']['level']
         return self._pkmn_battle.bytes[offset]
 
-    def set_level(self, player: Player, pokemon: PokemonSlot, new_level: int) -> None:
-        """Set the level of a Pokémon."""
+    def set_level(self, player: Player, pokemon: Slot, new_level: int) -> None:
+        """Set the level of a Pokémon.
+
+        This won't rebalance the Pokémon's stats.
+
+        Args:
+            player (`pykmn.engine.common.Player`): The player whose Pokémon's level to set.
+            pokemon (`Slot`): The slot number of the Pokémon to set the level for.
+            new_level (`int`): The new level of the Pokémon.
+        """
         offset = LAYOUT_OFFSETS['Battle']['sides'] + \
             LAYOUT_SIZES['Side'] * player + \
             LAYOUT_OFFSETS['Side']['pokemon'] + \
             LAYOUT_SIZES['Pokemon'] * (pokemon - 1) + \
             LAYOUT_OFFSETS['Pokemon']['level']
         self._pkmn_battle.bytes[offset] = new_level
-
-    def update(self, p1_choice: Choice, p2_choice: Choice) -> Tuple[Result, List[int]]:
-        """Update the battle with the given choice.
-
-        Args:
-            p1_choice (`Choice`): The choice to make for player 1.
-            p2_choice (`Choice`): The choice to make for player 2.
-
-        Returns:
-            **`Tuple[Result, List[int]]`**: The result of the choice,
-            and the trace as a list of protocol bytes
-        """
-        return self.update_raw(p1_choice._pkmn_choice, p2_choice._pkmn_choice)
-
-    def update_raw(self, p1_choice: int, p2_choice: int) -> Tuple[Result, List[int]]:
-        """Update the battle with the given choice.
-
-        This method accepts raw integers for choices instead of Choice objects.
-        If you don't get these from possible_choices() with raw=True, things may go wrong.
-
-        Args:
-            p1_choice (`int`): The choice to make for player 1.
-            p2_choice (`int`): The choice to make for player 2.
-
-        Returns:
-            **`Tuple[Result, List[int]]`**: The result of the choice,
-            and the trace as a list of protocol bytes
-        """
-        _pkmn_result = self._libpkmn.lib.pkmn_gen1_battle_update(
-            self._pkmn_battle,          # pkmn_gen1_battle *battle
-            p1_choice,     # pkmn_choice c1
-            p2_choice,     # pkmn_choice c2
-            self.trace_buf,                  # uint8_t *buf
-            self._libpkmn.lib.PKMN_GEN1_LOGS_SIZE,     # size_t len
-        )
-
-        result = Result(_pkmn_result, _libpkmn=self._libpkmn)
-        if result.is_error():
-            # per pkmn.h:
-            # This can only happen if libpkmn was built with trace logging enabled and the buffer
-            # provided to the update function was not large  enough to hold all of the data
-            # (which is only possible if the buffer being used was smaller than the
-            # generation in question's MAX_LOGS bytes).
-            raise Exception(
-                "An error was thrown in libpkmn while updating the battle. " +
-                "This should never happen; please file a bug report with PyKMN at " +
-                "https://github.com/AnnikaCodes/PyKMN/issues/new"
-            )
-        return (result, self.trace_buf)
-
-    def possible_choices(
-        self,
-        player: Player,
-        previous_turn_result: Result,
-    ) -> List[Choice]:
-        """Get the possible choices for the given player.
-
-        Args:
-            player (`Player`): The player to get choices for.
-            previous_turn_result (`Result`): The result of the previous turn
-                (the first turn should be two PASS choices).
-
-        Returns:
-            **`List[Choice]`**: The possible choices.
-        """
-        # optimization: it might be faster actually to cache _pkmn_result in the battle??
-        # This is equivalent to previous_turn_result.p<n>_choice_type().value but faster.
-
-        num_choices = self._fill_choice_buffer(player, previous_turn_result)
-        if num_choices == 0:
-            raise Softlock("Zero choices are available.")
-
-        choices: List[Choice] = []
-        for i in range(num_choices):
-            choices.append(Choice(self._choice_buf[i], _libpkmn=self._libpkmn))
-        return choices
-
-    def possible_choices_raw(
-        self,
-        player: Player,
-        previous_turn_result: Result,
-    ) -> List[int]:
-        """Get the possible choices for the given player.
-
-        This method returns raw integers instead of Choice objects.
-        If you need to inspect the choice data, use possible_choices() instead.
-
-        You MUST consume the returned choices before calling any possible_choices method again;
-        otherwise, the buffer will be overwritten.
-
-        If the buffer is length 0, a softlock has occurred.
-        possible_choices() automatically checks for this and raises an exception, but
-        possible_choices_raw() does not (for speed).
-
-        Args:
-            player (`Player`): The player to get choices for.
-            previous_turn_result (`Result`): The result of the previous turn
-                (the first turn should be two PASS choices).
-
-        Returns:
-            **`List[int]`**: The possible choices.
-        """
-        num_choices = self._fill_choice_buffer(player, previous_turn_result)
-        return self._choice_buf[0:num_choices]
 
     def _fill_choice_buffer(self, player: Player, previous_turn_result: Result) -> int:
         """Fills the battle's choice buffer with the possible choices for the given player.
@@ -1442,4 +1829,3 @@ class Battle:
         )
 
         return num_choices
-

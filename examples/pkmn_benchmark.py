@@ -9,7 +9,7 @@ import random
 from typing import cast, TypeVar, List
 from pykmn.engine.rng import ShowdownRNG
 from pykmn.engine.common import ResultType, Player
-from pykmn.engine.gen1 import Battle, PokemonData, Moveset
+from pykmn.engine.gen1 import Battle, Pokemon, Moveset
 from pykmn.data.gen1 import SPECIES_IDS, Gen1StatData, MOVES
 from pykmn.engine.libpkmn import libpkmn_no_trace, libpkmn_trace, libpkmn_showdown_trace, \
     libpkmn_showdown_no_trace, LibpkmnBinding
@@ -50,14 +50,14 @@ def new_seed(prng: ShowdownRNG) -> int:
         prng.in_range(0, 0x10000)
     )
 
-def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
+def generate_team(prng: ShowdownRNG) -> List[Pokemon]:
     """Generates a random team of Pokémon, like the @pkmn/engine benchmark.
 
     Args:
         prng (`ShowdownRNG`): The RNG to use.
 
     Returns:
-        **`List[PokemonData]`**: A list of Pokémon data.
+        **`List[Pokemon]`**: A list of Pokémon data.
     """
     team = []
     n = 6
@@ -96,10 +96,10 @@ def generate_team(prng: ShowdownRNG) -> List[PokemonData]:
                 # print(f"adding move: {move.replace(' ', '').lower()}")
         # print(f"after moveloop: {u64_to_4_u16s(prng.seed())}")
         assert len(moves) <= 4
-        pokemon: PokemonData = (
-            species,
-            cast(Moveset, tuple(moves)),
-            {'level': level, 'dvs': dvs, 'exp': exp}
+        pokemon = Pokemon(
+            species=species,
+            moves=cast(Moveset, tuple(moves)),
+            extra={'level': level, 'dvs': dvs, 'exp': exp}
         )
         team.append(pokemon)
     # print(f"after genteam: {u64_to_4_u16s(prng.seed())}")

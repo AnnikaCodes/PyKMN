@@ -38,7 +38,8 @@ def log(message: str, color: Color = Color.GREEN) -> None:
 
     Args:
         message (`str`): the message to log
-        color (`Color`, optional): the terminal color string to print with it. Defaults to GREEN.
+        color (`Color`, optional): the terminal color string to print with it.
+          Defaults to `Color.GREEN`.
     """
     global indent
     print(f"{color.value}{'=' * indent}> {message}\033[0m")

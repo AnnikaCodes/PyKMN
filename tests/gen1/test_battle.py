@@ -1,7 +1,8 @@
 """Tests the Gen 1 Battle class."""
 
 import unittest
-from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag, DisableData, Status
+from pykmn.engine.gen1 import Battle, Choice, Player, Result, VolatileFlag, DisableData, Status, \
+    Pokemon, Slot, MovePP
 from pykmn.data.gen1 import Gen1StatData
 from pykmn.engine.protocol import parse_protocol
 from pykmn.engine.libpkmn import libpkmn_no_trace, libpkmn_showdown_no_trace, libpkmn_trace, \
@@ -29,8 +30,8 @@ class TestBattle(unittest.TestCase):
         """Tests stat-boosting moves."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [('Mew', ('Swords Dance', ))],
-                [('Mew', ('Leer', ))],
+                [Pokemon(species='Mew', moves=('Swords Dance', ))],
+                [Pokemon(species='Mew', moves=('Leer', ))],
                 # no 1/256 miss
                 rng_seed=0 if libpkmn.lib.IS_SHOWDOWN_COMPATIBLE else [0] * 10,
                 libpkmn=libpkmn,
@@ -42,9 +43,18 @@ class TestBattle(unittest.TestCase):
                 battle.active_pokemon_stats(Player.P1),
                 battle.active_pokemon_stats(Player.P2),
             )
-            self.assertDictEqual(battle.active_pokemon_stats(Player.P1), battle.stats(Player.P1, 1))
-            self.assertDictEqual(battle.stats(Player.P1, 1), battle.active_pokemon_stats(Player.P1))
-            self.assertDictEqual(battle.stats(Player.P2, 1), battle.active_pokemon_stats(Player.P2))
+            self.assertDictEqual(
+                battle.active_pokemon_stats(Player.P1),
+                battle.stats(Player.P1, Slot.ONE)
+            )
+            self.assertDictEqual(
+                battle.stats(Player.P1, Slot.ONE),
+                battle.active_pokemon_stats(Player.P1)
+            )
+            self.assertDictEqual(
+                battle.stats(Player.P2, Slot.ONE),
+                battle.active_pokemon_stats(Player.P2)
+            )
 
             self.assertDictEqual(battle.boosts(Player.P1), no_boosts)
             self.assertDictEqual(battle.boosts(Player.P2), no_boosts)
@@ -57,9 +67,9 @@ class TestBattle(unittest.TestCase):
             self.assertDictEqual(battle.boosts(Player.P2), no_boosts)
 
             p1_active_stats = battle.active_pokemon_stats(Player.P1)
-            p1_original_stats = battle.stats(Player.P1, pokemon=1)
+            p1_original_stats = battle.stats(Player.P1, pokemon=Slot.ONE)
             p2_active_stats = battle.active_pokemon_stats(Player.P2)
-            p2_original_stats = battle.stats(Player.P2, pokemon=1)
+            p2_original_stats = battle.stats(Player.P2, pokemon=Slot.ONE)
 
             self.assertEqual(p1_active_stats['atk'], p1_original_stats['atk'] * 2)
             self.assertEqual(p1_active_stats['spc'], p2_original_stats['spc'])
@@ -97,8 +107,11 @@ class TestBattle(unittest.TestCase):
         """ActivePokemon.species test."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [('Starmie', ('None',)), ('Kangaskhan', ('Tackle', ))],
-                [('Articuno', ('Amnesia',))],
+                [
+                    Pokemon(species='Starmie', moves=('None',)),
+                    Pokemon(species='Kangaskhan', moves=('Tackle', ))
+                ],
+                [Pokemon(species='Articuno', moves=('Amnesia',))],
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
@@ -118,8 +131,8 @@ class TestBattle(unittest.TestCase):
         """ActivePokemon.types test."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [('Charizard', ('Swords Dance', ))],
-                [('Blastoise', ('Amnesia', 'Fly'))],
+                [Pokemon(species='Charizard', moves=('Swords Dance', ))],
+                [Pokemon(species='Blastoise', moves=('Amnesia', 'Fly'))],
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
@@ -136,8 +149,8 @@ class TestBattle(unittest.TestCase):
         """Tests that the last selected move is stored/loaded correctly."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [('Mew', ('Swords Dance', 'Surf'))],
-                [('Mew', ('Amnesia', 'Fly'))],
+                [Pokemon(species='Mew', moves=('Swords Dance', 'Surf'))],
+                [Pokemon(species='Mew', moves=('Amnesia', 'Fly'))],
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
@@ -164,29 +177,33 @@ class TestBattle(unittest.TestCase):
         """Test current HP storage."""
         for libpkmn in all_libpkmn:
             # Swift chosen so that we don't have to worry about misses
-            battle = Battle([('Mew', ('Swift',))], [('Mew', ('Swift',))], libpkmn=libpkmn)
+            battle = Battle(
+                [Pokemon(species='Mew', moves=('Swift',))],
+                [Pokemon(species='Mew', moves=('Swift',))],
+                libpkmn=libpkmn
+            )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
 
-            initial_hp = battle.current_hp(Player.P2, 1)
-            self.assertEqual(initial_hp, battle.stats(Player.P2, 1)['hp'])
-            self.assertEqual(initial_hp, battle.current_hp(Player.P2, 1))
-            self.assertEqual(initial_hp, battle.current_hp(Player.P1, 1))
+            initial_hp = battle.current_hp(Player.P2, Slot.ONE)
+            self.assertEqual(initial_hp, battle.stats(Player.P2, Slot.ONE)['hp'])
+            self.assertEqual(initial_hp, battle.current_hp(Player.P2, Slot.ONE))
+            self.assertEqual(initial_hp, battle.current_hp(Player.P1, Slot.ONE))
             self.assertNotEqual(initial_hp, 200)
 
-            battle.set_current_hp(Player.P2, 1, 200)
-            self.assertEqual(battle.current_hp(Player.P2, 1), 200)
+            battle.set_current_hp(Player.P2, Slot.ONE, 200)
+            self.assertEqual(battle.current_hp(Player.P2, Slot.ONE), 200)
 
             # make them FIGHT!
             run_first_choice(battle, result)
-            self.assertLess(battle.current_hp(Player.P2, 1), 200)
-            self.assertLess(battle.current_hp(Player.P1, 1), initial_hp)
+            self.assertLess(battle.current_hp(Player.P2, Slot.ONE), 200)
+            self.assertLess(battle.current_hp(Player.P1, Slot.ONE), initial_hp)
 
     def test_turn(self) -> None:
         """Test turn storage."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [('Mew', ('Swords Dance', 'Surf'))],
-                [('Mew', ('Amnesia', 'Fly'))],
+                [Pokemon(species='Mew', moves=('Swords Dance', 'Surf'))],
+                [Pokemon(species='Mew', moves=('Amnesia', 'Fly'))],
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
@@ -202,8 +219,8 @@ class TestBattle(unittest.TestCase):
         """Test last damage variable."""
         for libpkmn in showdown_libpkmn:
             battle = Battle(
-                p1_team=[('Mew', ('Amnesia', ))],
-                p2_team=[('Mew', ('Surf', ))],
+                p1_team=[Pokemon(species='Mew', moves=('Amnesia', ))],
+                p2_team=[Pokemon(species='Mew', moves=('Surf', ))],
                 rng_seed=0,
                 libpkmn=libpkmn,
             )
@@ -221,15 +238,18 @@ class TestBattle(unittest.TestCase):
         for libpkmn in all_libpkmn:
             stats: Gen1StatData = {'hp': 582, 'atk': 92, 'def': 312, 'spe': 484, 'spc': 831}
             battle = Battle(
-                p1_team=[('Bulbasaur', ('Tackle',)), ('Mew', ('Amnesia', ), {'stats': stats})],
-                p2_team=[('Mew', ('Surf', ))],
+                p1_team=[
+                    Pokemon(species='Bulbasaur', moves=('Tackle',)),
+                    Pokemon(species='Mew', moves=('Amnesia', ), extra={'stats': stats}),
+                ],
+                p2_team=[Pokemon(species='Mew', moves=('Surf', ))],
                 libpkmn=libpkmn,
             )
-            self.assertDictEqual(battle.stats(Player.P1, 2), stats)
+            self.assertDictEqual(battle.stats(Player.P1, Slot.TWO), stats)
 
-            battle.set_stats(Player.P1, 2, {'hp': 89, 'atk': 35, 'spe': 12})
+            battle.set_stats(Player.P1, Slot.TWO, {'hp': 89, 'atk': 35, 'spe': 12})
             self.assertDictEqual(
-                battle.stats(Player.P1, 2),
+                battle.stats(Player.P1, Slot.TWO),
                 {'hp': 89, 'atk': 35, 'def': stats['def'], 'spe': 12, 'spc': stats['spc']},
             )
 
@@ -237,28 +257,33 @@ class TestBattle(unittest.TestCase):
         """Tests that the moves are stored/loaded correctly."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                p1_team=[('Mew', ('Amnesia', 'Surf', 'Thunderbolt', 'Fly'))],
-                p2_team=[('Mew', ('Surf', 'Hyper Beam'), {'move_pp': (28, 63, 0, 0)})],
+                p1_team=[Pokemon(species='Mew', moves=('Amnesia', 'Surf', 'Thunderbolt', 'Fly'))],
+                p2_team=[Pokemon(
+                    species='Mew',
+                    moves=('Surf', 'Hyper Beam'),
+                    extra={'move_pp': (8, 63, 0, 0)}
+                )],
                 libpkmn=libpkmn,
             )
             self.assertTupleEqual(
-                battle.moves(Player.P1, 1),
+                battle.moves(Player.P1, Slot.ONE),
                 ('Amnesia', 'Surf', 'Thunderbolt', 'Fly'),
             )
-            self.assertTupleEqual(battle.moves(Player.P2, 1), ('Surf', 'Hyper Beam'))
-            self.assertTupleEqual(battle.pp_left(Player.P2, 1), (28, 63))
+            self.assertTupleEqual(battle.moves(Player.P2, Slot.ONE), ('Surf', 'Hyper Beam'))
+            self.assertTupleEqual(battle.pp_left(Player.P2, Slot.ONE), (8, 63))
             self.assertTupleEqual(
-                battle.moves_with_pp(Player.P2, 1),
-                (('Surf', 28), ('Hyper Beam', 63)),
+                battle.moves_with_pp(Player.P2, Slot.ONE),
+                (('Surf', 8), ('Hyper Beam', 63)),
             )
 
-            battle.set_moves(Player.P1, 1, (
-                ('Flash', 10), ('High Jump Kick', 15), ('None', 0), ('None', 0),
+            battle.set_moves(Player.P1, Slot.ONE, (
+                MovePP(('Flash', 10)), MovePP(('High Jump Kick', 15)),
+                MovePP(('None', 0)), MovePP(('None', 0)),
             ))
-            self.assertTupleEqual(battle.moves(Player.P1, 1), ('Flash', 'High Jump Kick'))
-            self.assertTupleEqual(battle.pp_left(Player.P1, 1), (10, 15))
+            self.assertTupleEqual(battle.moves(Player.P1, Slot.ONE), ('Flash', 'High Jump Kick'))
+            self.assertTupleEqual(battle.pp_left(Player.P1, Slot.ONE), (10, 15))
             self.assertTupleEqual(
-                battle.moves_with_pp(Player.P1, pokemon=1),
+                battle.moves_with_pp(Player.P1, pokemon=Slot.ONE),
                 (('Flash', 10), ('High Jump Kick', 15))
             )
 
@@ -266,33 +291,33 @@ class TestBattle(unittest.TestCase):
         """Tests that status & the Toxic counter are stored/loaded correctly."""
         for libpkmn in showdown_libpkmn:
             battle = Battle(
-                p1_team=[('Muk', ('Toxic', ))],
-                p2_team=[('Mew', ('Tackle', ))],
+                p1_team=[Pokemon(species='Muk', moves=('Toxic', ))],
+                p2_team=[Pokemon(species='Mew', moves=('Tackle', ))],
                 rng_seed=0,
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
-            self.assertTrue(battle.status(Player.P1, 1).healthy())
-            self.assertTrue(battle.status(Player.P2, 1).healthy())
+            self.assertTrue(battle.status(Player.P1, Slot.ONE).healthy())
+            self.assertTrue(battle.status(Player.P2, Slot.ONE).healthy())
 
             result = run_first_choice(battle, result)
             # P2 is badly poisoned
-            self.assertTrue(battle.status(Player.P2, 1).poisoned()) # Toxic
+            self.assertTrue(battle.status(Player.P2, Slot.ONE).poisoned()) # Toxic
             self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Toxic))
             self.assertEqual(battle.toxic_severity(Player.P2), 0)
 
             result = run_first_choice(battle, result)
-            self.assertTrue(battle.status(Player.P1, 1).healthy()) # No status
+            self.assertTrue(battle.status(Player.P1, Slot.ONE).healthy()) # No status
             self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Toxic))
             self.assertEqual(battle.toxic_severity(Player.P2), 1)
 
             result = run_first_choice(battle, result)
             self.assertEqual(battle.toxic_severity(Player.P2), 2)
-            self.assertTrue(battle.status(Player.P2, 1).poisoned())
+            self.assertTrue(battle.status(Player.P2, Slot.ONE).poisoned())
 
-            battle.set_status(Player.P1, 1, Status.FROZEN())
-            self.assertTrue(battle.status(Player.P1, 1).frozen())
-            self.assertTrue(battle.status(Player.P2, 1).poisoned())
+            battle.set_status(Player.P1, Slot.ONE, Status.FROZEN())
+            self.assertTrue(battle.status(Player.P1, Slot.ONE).frozen())
+            self.assertTrue(battle.status(Player.P2, Slot.ONE).poisoned())
 
             battle.set_toxic_severity(Player.P2, 5)
             self.assertEqual(battle.toxic_severity(Player.P2), 5)
@@ -301,27 +326,27 @@ class TestBattle(unittest.TestCase):
         """Tests that the species is stored/loaded correctly."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                p1_team=[('Mew', ('Amnesia', ))],
-                p2_team=[('Blastoise', ('Surf', ))],
+                p1_team=[Pokemon(species='Mew', moves=('Amnesia', ))],
+                p2_team=[Pokemon(species='Blastoise', moves=('Surf', ))],
                 libpkmn=libpkmn,
             )
-            self.assertEqual(battle.species(Player.P1, 1), 'Mew')
-            self.assertEqual(battle.species(Player.P2, 1), 'Blastoise')
+            self.assertEqual(battle.species(Player.P1, Slot.ONE), 'Mew')
+            self.assertEqual(battle.species(Player.P2, Slot.ONE), 'Blastoise')
 
-            battle.set_species(Player.P2, 1, 'Eevee')
-            self.assertEqual(battle.species(Player.P1, 1), 'Mew')
-            self.assertEqual(battle.species(Player.P2, 1), 'Eevee')
+            battle.set_species(Player.P2, Slot.ONE, 'Eevee')
+            self.assertEqual(battle.species(Player.P1, Slot.ONE), 'Mew')
+            self.assertEqual(battle.species(Player.P2, Slot.ONE), 'Eevee')
 
     def test_transform(self) -> None:
         """Tests that the type storage and Transform are correct."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                p1_team=[('Charizard', ('Splash', ))],
-                p2_team=[('Ditto', ('Transform', ))],
+                p1_team=[Pokemon(species='Charizard', moves=('Splash', ))],
+                p2_team=[Pokemon(species='Ditto', moves=('Transform', ))],
                 libpkmn=libpkmn,
             )
-            self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
-            self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
+            self.assertTupleEqual(battle.types(Player.P1, Slot.ONE), ('Fire', 'Flying'))
+            self.assertTupleEqual(battle.types(Player.P2, Slot.ONE), ('Normal',))
             self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
 
             # Transform should change active pokemon's types but not in the team
@@ -329,16 +354,16 @@ class TestBattle(unittest.TestCase):
             self.assertTrue(battle.volatile(Player.P2, VolatileFlag.Transform))
             self.assertTupleEqual(battle.transformed_into(Player.P2), (Player.P1, 1))
 
-            self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
+            self.assertTupleEqual(battle.types(Player.P1, Slot.ONE), ('Fire', 'Flying'))
             self.assertTupleEqual(battle.active_pokemon_types(Player.P2), ('Fire', 'Flying'))
-            self.assertTupleEqual(battle.types(Player.P2, 1), ('Normal',))
+            self.assertTupleEqual(battle.types(Player.P2, Slot.ONE), ('Normal',))
 
-            battle.set_types(Player.P2, 1, ('Grass', 'Poison'))
-            self.assertTupleEqual(battle.types(Player.P1, 1), ('Fire', 'Flying'))
-            self.assertTupleEqual(battle.types(Player.P2, 1), ('Grass', 'Poison'))
+            battle.set_types(Player.P2, Slot.ONE, ('Grass', 'Poison'))
+            self.assertTupleEqual(battle.types(Player.P1, Slot.ONE), ('Fire', 'Flying'))
+            self.assertTupleEqual(battle.types(Player.P2, Slot.ONE), ('Grass', 'Poison'))
 
-            battle.set_transformed_into(Player.P2, (Player.P2, 3))
-            self.assertTupleEqual(battle.transformed_into(Player.P2), (Player.P2, 3))
+            battle.set_transformed_into(Player.P2, (Player.P2, Slot.THREE))
+            self.assertTupleEqual(battle.transformed_into(Player.P2), (Player.P2, Slot.THREE))
 
             battle.set_volatile(Player.P2, VolatileFlag.Transform, False)
             self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Transform))
@@ -347,39 +372,39 @@ class TestBattle(unittest.TestCase):
         """Tests that Pokémon level is stored/loaded correctly."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [("Mew", ("Amnesia", ))],
-                [("Mew", ("Surf", ), {'level': 47})],
+                [Pokemon(species="Mew", moves=("Amnesia", ))],
+                [Pokemon(species="Mew", moves=("Surf", ), extra={'level': 47})],
                 libpkmn=libpkmn,
             )
-            self.assertEqual(battle.level(Player.P1, 1), 100)
-            self.assertEqual(battle.level(Player.P2, 1), 47)
+            self.assertEqual(battle.level(Player.P1, Slot.ONE), 100)
+            self.assertEqual(battle.level(Player.P2, Slot.ONE), 47)
 
-            battle.set_level(Player.P1, 1, 12)
-            self.assertEqual(battle.level(Player.P1, 1), 12)
-            self.assertEqual(battle.level(Player.P2, 1), 47)
+            battle.set_level(Player.P1, Slot.ONE, 12)
+            self.assertEqual(battle.level(Player.P1, Slot.ONE), 12)
+            self.assertEqual(battle.level(Player.P2, Slot.ONE), 47)
 
-            battle.set_level(Player.P2, 1, 87)
-            self.assertEqual(battle.level(Player.P1, 1), 12)
-            self.assertEqual(battle.level(Player.P2, 1), 87)
+            battle.set_level(Player.P2, Slot.ONE, 87)
+            self.assertEqual(battle.level(Player.P1, Slot.ONE), 12)
+            self.assertEqual(battle.level(Player.P2, Slot.ONE), 87)
 
     def test_40pp_moves(self) -> None:
         """Moves with 40 PP should have 61 after PP Ups."""
         for libpkmn in all_libpkmn:
             # https://github.com/pkmn/engine/blob/main/src/lib/gen1/helpers.zig#L145
             battle = Battle(
-                [('Bulbasaur', ('Growth', ))],
-                [('Grimer', ('Poison Gas', ))],
+                [Pokemon(species='Bulbasaur', moves=('Growth', ))],
+                [Pokemon(species='Grimer', moves=('Poison Gas', ))],
                 libpkmn=libpkmn,
             )
-            self.assertEqual(battle.pp_left(Player.P1, 1), (61, ))
-            self.assertEqual(battle.pp_left(Player.P2, 1), (61, ))
+            self.assertEqual(battle.pp_left(Player.P1, Slot.ONE), (61, ))
+            self.assertEqual(battle.pp_left(Player.P2, Slot.ONE), (61, ))
 
     def test_confusion(self) -> None:
         """Tests confusion mechanics."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [("Mew", ("Amnesia", ))],
-                [("Mew", ("Confuse Ray", ))],
+                [Pokemon(species="Mew", moves=("Amnesia", ))],
+                [Pokemon(species="Mew", moves=("Confuse Ray", ))],
                 rng_seed=0 if libpkmn.lib.IS_SHOWDOWN_COMPATIBLE else [0] * 10,
                 libpkmn=libpkmn,
             )
@@ -407,13 +432,13 @@ class TestBattle(unittest.TestCase):
         """Tests volatile data storage by using the move Bide."""
         for libpkmn in all_libpkmn:
             battle = Battle(
-                [("Mew", ("Bide", ))],
+                [Pokemon(species="Mew", moves=("Bide", ))],
                 # zero DVs so that it goes last
-                [("Mew", ("Swift", ), {'dvs': zero_dvs})],
+                [Pokemon(species="Mew", moves=("Swift", ), extra={'dvs': zero_dvs})],
                 rng_seed=0 if libpkmn.lib.IS_SHOWDOWN_COMPATIBLE else [3] * 10,
                 libpkmn=libpkmn,
             )
-            p1_full_hp = battle.stats(Player.P1, 1)['hp']
+            p1_full_hp = battle.stats(Player.P1, Slot.ONE)['hp']
 
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
             self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Bide))
@@ -428,7 +453,7 @@ class TestBattle(unittest.TestCase):
             # 2 Bide turns on this seed with ShowdownRNG
             self.assertEqual(battle.attacks_left(Player.P1), 2)
             self.assertEqual(battle.attacks_left(Player.P2), 0)
-            turn1_damage = p1_full_hp - battle.current_hp(Player.P1, 1)
+            turn1_damage = p1_full_hp - battle.current_hp(Player.P1, Slot.ONE)
 
             run_first_choice(battle, result) # P1: Bide (fails), P2: Swift
             # the Bide damage counter updates at the start of *this* turn with *last* turn's damage
@@ -452,12 +477,12 @@ class TestBattle(unittest.TestCase):
         for libpkmn in all_libpkmn:
             battle = Battle(
                 # zero DVs so it goes last and doesn't have the sub take damage the turn it goes up
-                [("Squirtle", ("Substitute", ), {'dvs': zero_dvs})],
-                [("Squirtle", ("Tackle", ))],
+                [Pokemon(species="Squirtle", moves=("Substitute", ), extra={'dvs': zero_dvs})],
+                [Pokemon(species="Squirtle", moves=("Tackle", ))],
                 libpkmn=libpkmn,
             )
             (result, _) = battle.update(Choice.PASS(), Choice.PASS())
-            sub_hp = battle.stats(Player.P1, 1)['hp'] // 4 + 1
+            sub_hp = battle.stats(Player.P1, Slot.ONE)['hp'] // 4 + 1
             self.assertFalse(battle.volatile(Player.P1, VolatileFlag.Substitute))
             self.assertFalse(battle.volatile(Player.P2, VolatileFlag.Substitute))
             self.assertEqual(battle.substitute_hp(Player.P1), 0)
@@ -480,8 +505,8 @@ class TestBattle(unittest.TestCase):
         """Tests Disable mechanics."""
         for libpkmn in trace_libpkmn:
             battle = Battle(
-                [("Squirtle", ("Disable", ), {'dvs': zero_dvs})],
-                [("Squirtle", ("Tackle", ))],
+                [Pokemon(species="Squirtle", moves=("Disable", ), extra={'dvs': zero_dvs})],
+                [Pokemon(species="Squirtle", moves=("Tackle", ))],
                 # TODO: investigate turns_left=8 when this seed is 2 on showdown-compatible
                 rng_seed=1 if libpkmn.lib.IS_SHOWDOWN_COMPATIBLE else list(range(10)),
                 libpkmn=libpkmn,

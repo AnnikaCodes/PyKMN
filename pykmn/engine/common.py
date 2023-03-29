@@ -204,7 +204,7 @@ class Choice:
         """Get the data associated with the choice.
 
         Returns:
-            **`int | None`**: slot number for a switch,
+            **`int` | `None`**: slot number for a switch,
             move index for a move, and `None` for a pass.
         """
         if self.type() == ChoiceType.PASS:

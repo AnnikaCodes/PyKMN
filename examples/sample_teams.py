@@ -1,27 +1,27 @@
 """Test script."""
-from pykmn.engine.gen1 import Battle, Player, Choice
+from pykmn.engine.gen1 import Battle, Player, Choice, Pokemon
 from pykmn.engine.common import ResultType, Slots
 from pykmn.engine.protocol import parse_protocol
 import random
 
 # https://pokepast.es/cc9b111c9f81f6a4
 team1 = [
-    ("Starmie", ("Psychic", "Blizzard", "Thunder Wave", "Recover")),
-    ("Exeggutor", ("Sleep Powder", "Psychic", "Double-Edge", "Explosion")),
-    ("Alakazam", ("Psychic", "Seismic Toss", "Thunder Wave", "Recover")),
-    ("Chansey", ("Ice Beam", "Thunderbolt", "Thunder Wave", "Soft-Boiled")),
-    ("Snorlax", ("Body Slam", "Reflect", "Earthquake", "Rest")),
-    ("Tauros", ("Body Slam", "Hyper Beam", "Blizzard", "Earthquake")),
+    Pokemon(species="Starmie", moves=("Psychic", "Blizzard", "Thunder Wave", "Recover")),
+    Pokemon(species="Exeggutor", moves=("Sleep Powder", "Psychic", "Double-Edge", "Explosion")),
+    Pokemon(species="Alakazam", moves=("Psychic", "Seismic Toss", "Thunder Wave", "Recover")),
+    Pokemon(species="Chansey", moves=("Ice Beam", "Thunderbolt", "Thunder Wave", "Soft-Boiled")),
+    Pokemon(species="Snorlax", moves=("Body Slam", "Reflect", "Earthquake", "Rest")),
+    Pokemon(species="Tauros", moves=("Body Slam", "Hyper Beam", "Blizzard", "Earthquake")),
 ]
 
 # https://pokepast.es/7f1c2e78e6ba3194
 team2 = [
-    ("Jynx", ("Lovely Kiss", "Blizzard", "Psychic", "Rest")),
-    ("Starmie", ("Psychic", "Thunderbolt", "Thunder Wave", "Recover")),
-    ("Alakazam", ("Psychic", "Seismic Toss", "Thunder Wave", "Recover")),
-    ("Chansey", ("Seismic Toss", "Reflect", "Thunder Wave", "Soft-Boiled")),
-    ("Snorlax", ("Body Slam", "Reflect", "Self-Destruct", "Rest")),
-    ("Tauros", ("Body Slam", "Hyper Beam", "Blizzard", "Earthquake")),
+    Pokemon(species="Jynx", moves=("Lovely Kiss", "Blizzard", "Psychic", "Rest")),
+    Pokemon(species="Starmie", moves=("Psychic", "Thunderbolt", "Thunder Wave", "Recover")),
+    Pokemon(species="Alakazam", moves=("Psychic", "Seismic Toss", "Thunder Wave", "Recover")),
+    Pokemon(species="Chansey", moves=("Seismic Toss", "Reflect", "Thunder Wave", "Soft-Boiled")),
+    Pokemon(species="Snorlax", moves=("Body Slam", "Reflect", "Self-Destruct", "Rest")),
+    Pokemon(species="Tauros", moves=("Body Slam", "Hyper Beam", "Blizzard", "Earthquake")),
 ]
 
 
@@ -29,7 +29,7 @@ def run_battle(log: bool = True) -> None:
     """Runs a Pokémon battle.
 
     Args:
-        log (`bool`, optional): Whether to log protocol traces. Defaults to True.
+        log (`bool`, optional): Whether to log protocol traces. Defaults to `True`.
     """
     battle = Battle(
         p1_team=team1,
