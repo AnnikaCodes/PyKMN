@@ -18,28 +18,70 @@ Gen1StatData = TypedDict(
     'Gen1StatData',
     {'hp': int, 'atk': int, 'def': int, 'spe': int, 'spc': int},
 )
+"""Data about Pokémon stats in Generation I.
+
+This is a dictionary with the following keys:
+* `hp` (`int`): the Pokémon's HP stat
+* `atk` (`int`): the Pokémon's Attack stat
+* `def` (`int`): the Pokémon's Defense stat
+* `spe` (`int`): the Pokémon's Speed stat
+* `spc` (`int`): the Pokémon's Special stat
+"""
+
 PartialGen1StatData = TypedDict(
     'PartialGen1StatData',
     {'hp': int, 'atk': int, 'def': int, 'spe': int, 'spc': int},
     total=False,
 )
+"""Like `Gen1StatData`, but with optional keys."""
+
 class Gen1SpeciesData(TypedDict):
-    """Data about Pokémon species in Generation I."""
+    """Data about Pokémon species in Generation I.
+
+    This is a dictionary with the following keys:
+    * `stats`: a `Gen1StatData` dictionary
+    * `types`: a list of the Pokémon's types
+    """
     stats: Gen1StatData
     types: List[str]
+
 
 Gen2StatData = TypedDict(
     'Gen2StatData',
     {'hp': int, 'atk': int, 'def': int, 'spe': int, 'spa': int, 'spd': int},
 )
+"""Data about Pokémon stats in Generation II.
+
+This is a dictionary with the following keys:
+* `hp` (`int`): the Pokémon's HP stat
+* `atk` (`int`): the Pokémon's Attack stat
+* `def` (`int`): the Pokémon's Defense stat
+* `spe` (`int`): the Pokémon's Speed stat
+* `spa` (`int`): the Pokémon's Special Attack stat
+* `spd` (`int`): the Pokémon's Special Defense stat
+"""
+
 class Gen2SpeciesData(TypedDict):
-    """Data about Pokémon species in Generation II."""
+    """Data about Pokémon species in Generation II.
+
+    This is a dictionary with the following keys:
+    * `stats`: a `Gen2StatData` dictionary
+    * `types`: a list of the Pokémon's types
+    * `gender`: the Pokémon's % female (as a proportion out of 254) or 255 if genderless
+    """
     stats: Gen2StatData
     types: List[str]
     gender: int
 
 class SizeData(TypedDict):
-    """A dictionary containing sizes for various libpkmn data structures."""
+    """A dictionary containing sizes for various libpkmn data structures.
+
+    Keys:
+    * `Battle` (`int`): the size of a `Battle` struct
+    * `Side` (`int`): the size of a `Side` struct
+    * `ActivePokemon` (`int`): the size of an `ActivePokemon` struct
+    * `Pokemon` (`int`): the size of a `Pokemon` struct
+    """
     Battle: int
     Side: int
     ActivePokemon: int
@@ -96,9 +138,10 @@ BoostsOffsets = TypedDict('BoostsOffsets', {
     'accuracy': int,
     'evasion': int,
 })
+"""A dictionary of offsets for stat boosts within libpkmn's data."""
 
 class VolatilesOffsets(TypedDict):
-    """A dictionary of volatile statuses and their offsets within libpkmnn's data."""
+    """A dictionary of volatile statuses and their offsets within libpkmn's data."""
     Bide: int
     Thrashing: int
     MultiHit: int
@@ -136,75 +179,77 @@ class OffsetData(TypedDict):
     Boosts: BoostsOffsets
     Volatiles: VolatilesOffsets
 
-"""A list of Pokémon type names."""
 GEN1_TYPES: List[str] = data_json[0]["types"]
+"""A list of Pokémon type names."""
 
+GEN1_SPECIES: Dict[str, Gen1SpeciesData] = data_json[0]["species"]
 """
 A dictionary of Pokémon species data.
 
 Species names are keys.
 """
-GEN1_SPECIES: Dict[str, Gen1SpeciesData] = data_json[0]["species"]
 
+GEN1_SPECIES_IDS: Dict[str, int] = {'None': 0}
 """
 A dictionary of Pokémon species data.
 
 Species names are keys, and values are libpkmn species IDs.
 """
-GEN1_SPECIES_IDS: Dict[str, int] = {'None': 0}
+
 for (index, species_name) in enumerate(list(GEN1_SPECIES.keys())):
     GEN1_SPECIES_IDS[species_name] = index + 1
 
 GEN1_SPECIES_ID_LOOKUP: Dict[int, str] = {v: k for k, v in GEN1_SPECIES_IDS.items()}
+"""A speciesID:speciesName lookup table."""
 
+GEN1_MOVES: Dict[str, int] = data_json[0]["moves"]
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are PP.
 """
-GEN1_MOVES: Dict[str, int] = data_json[0]["moves"]
 
+GEN1_MOVE_IDS: Dict[str, int] = {'None': 0}
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are libpkmn move IDs.
 """
-GEN1_MOVE_IDS: Dict[str, int] = {'None': 0}
 for (index, move_name) in enumerate(list(GEN1_MOVES.keys())):
     GEN1_MOVE_IDS[move_name] = index + 1
 
 GEN1_MOVE_ID_LOOKUP: Dict[int, str] = {v: k for k, v in GEN1_MOVE_IDS.items()}
+"""A moveID:moveName lookup table."""
 
-
-"""A list of Pokémon type names."""
 GEN2_TYPES: List[str] = data_json[1]["types"]
+"""A list of Pokémon type names."""
 
+GEN2_SPECIES: Dict[str, Gen2SpeciesData] = data_json[1]["species"]
 """
 A dictionary of Pokémon species data.
 
 Species names are keys.
 """
-GEN2_SPECIES: Dict[str, Gen2SpeciesData] = data_json[1]["species"]
 
+GEN2_MOVES: Dict[str, int] = data_json[1]["moves"]
 """
 A dictionary of Pokémon move data.
 
 Move names are keys, and values are PP.
 """
-GEN2_MOVES: Dict[str, int] = data_json[1]["moves"]
 
-"""A list of Pokémon item names."""
 GEN2_ITEMS: List[str] = data_json[1]["items"]
+"""A list of Pokémon item names."""
 
-"""A list of protocol message names. Indices are what the binary protocol uses."""""
 PROTOCOL_MESSAGES: List[str] = protocol_json["ArgType"]
+"""A list of protocol message names. Indices are what the binary protocol uses."""""
 
 del protocol_json["ArgType"]
+PROTOCOL_REASONS: Dict[str, List[str]] = protocol_json
 """
 A dictionary whose keys are protocol message names,
 and values are lists of possible values for Reason.
 """
-PROTOCOL_REASONS: Dict[str, List[str]] = protocol_json
 
 GEN1_LAYOUT_SIZES: SizeData = layout_json[0]["sizes"]
 GEN1_LAYOUT_OFFSETS: OffsetData = layout_json[0]["offsets"]

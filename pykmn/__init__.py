@@ -2,8 +2,8 @@
 """PyKMN is a Python library that allows you to use the [libpkmn](https://pkmn.cc/engine) library
 to simulate Pokémon battles.
 
-PyKMN has two main components: `pykmn.engine`, which can actually simulate battles,
-and `pykmn.data`, which just repackages a bunch of data about Pokémon from the pkmn project.
+PyKMN's main component is `pykmn.engine` which does the actual battle simulation.
+(`pykmn.data` just repackages a bunch of data about Pokémon.)
 You may want to check out the [examples](https://github.com/AnnikaCodes/PyKMN/tree/main/examples)
 for real-world demonstrations of how to use PyKMN.
 
@@ -23,6 +23,9 @@ python3 -m pip install build cffi requests
 python3 -m build
 python3 -m pip install --find-links=dist pykmn
 ```
+
+If you're running Windows, PyKMN probably won't work for you yet.
+I'm working on getting things working on Windows, but for now macOS and Linux are the best bets.
 
 ## Performance Considerations
 PyKMN has been written to be relatively performant — certainly much faster than using Pokémon Showdown.
