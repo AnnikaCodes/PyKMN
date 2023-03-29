@@ -32,3 +32,6 @@ ignore = ["D401", "D407", "ANN101", "UP007", "UP006"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
+
+[build]
+compiler = "mingw64"

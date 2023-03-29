@@ -241,7 +241,7 @@ def build_pkmn_engine(out_dir: str, options: List[str]) -> None:
             "--prefix", out_dir,
         ] + options
         if platform.system() == 'Windows':
-            args.append('-Dtarget=native-native-gnu')
+            args.append('-Dtarget=x86_64-windows-msvc')
         if 'PYKMN_DEBUG' in os.environ and os.environ['PYKMN_DEBUG'] != '':
             log(
                 f"Building libpkmn in Debug mode with flags {options} with Zig at {zig_path}",
@@ -329,6 +329,7 @@ for (ffi, name, options) in [
             library_dirs=[os.path.join(output_dir, "lib")],
             extra_compile_args=["-fPIC", "-shared"],
             extra_link_args=["-fPIC"],
+
         )
 
 if downloaded_zig:
