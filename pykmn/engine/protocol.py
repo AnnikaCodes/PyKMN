@@ -79,14 +79,43 @@ def parse_protocol(
     # https://github.com/python/mypy/issues/5068#issuecomment-389882867
     slots: Slots = ([f"Pokémon #{n}" for n in range(1, 7)],)*2, # type: ignore
 ) -> List[str]:
-    """Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
+    r"""Convert libpkmn binary protocol to Pokémon Showdown protocol messages.
+
+    As an example:
+    ```python
+    from pykmn.engine.protocol import parse_protocol
+    from pykmn.engine.gen1 import Battle, Pokemon
+    from pykmn.engine.common import Choice, Player, Slots
+
+    battle = Battle(
+        [Pokemon(species="Charmander", moves=("Flamethrower", ))],
+        [Pokemon(species="Squirtle", moves=("Bubble", ))],
+    )
+    (result, trace) = battle.update(Choice.PASS(), Choice.PASS())
+
+    p1choice = battle.possible_choices(Player.P1, result).pop()
+    p2choice = battle.possible_choices(Player.P2, result).pop()
+    (result, trace) = battle.update(p1choice, p2choice)
+
+    messages = parse_protocol(trace, Slots((["Charmander"], ["Squirtle"])))
+    # messages is now a list of PS protocol messages
+
+    print("\n".join(messages))
+    # |move|p1a: Charmander|Flamethrower|p2a: Squirtle
+    # |-resisted|p2a: Squirtle
+    # |-damage|p2a: Squirtle|237/291
+    # |move|p2a: Squirtle|Bubble|p1a: Charmander
+    # |-supereffective|p1a: Charmander
+    # |-damage|p1a: Charmander|230/281
+    # |turn|2
+    ```
 
     Args:
         binary_protocol (`List[int]`): An array of byte-length integers of libpkmn protocol.
-        slots (`Slots`): A list of Pokémon names in each slot for sides 1 and 2
+        slots (`pykmn.engine.common.Slots`): A list of Pokémon names in each slot for sides 1 and 2
 
     Returns:
-        **`List[str]`**: An array of PS protocol messages.
+        **`List[str]`**: An array of PS-style protocol messages.
     """
     messages: List[str] = []
     i = 0
