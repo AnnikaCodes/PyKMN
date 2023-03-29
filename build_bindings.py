@@ -329,7 +329,6 @@ for (ffi, name, options) in [
             library_dirs=[os.path.join(output_dir, "lib")],
             extra_compile_args=["-fPIC", "-shared"],
             extra_link_args=["-fPIC"],
-
         )
 
 if downloaded_zig:
